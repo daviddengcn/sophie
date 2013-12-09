@@ -8,10 +8,19 @@ import (
 	"github.com/daviddengcn/go-assert"
 )
 
+type BufferCloser struct {
+	*bytes.Buffer
+}
+
+func (bc BufferCloser) Close() error {
+	return nil
+}
+
+
 func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	var buf bytes.Buffer
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v", sa),
-		sa.WriteTo(&buf))
+		sa.WriteTo(BufferCloser{&buf}))
 
 	if outBytes >= 0 {
 		assert.Equals(t, fmt.Sprintf("readWrite(%v): buf.Len", sa), buf.Len(),
@@ -19,7 +28,7 @@ func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	}
 
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sb.ReadFrom failed: %%v",
-		sa), sb.ReadFrom(&buf))
+		sa), sb.ReadFrom(BufferCloser{&buf}))
 }
 
 func TestBasicSophieTypes(t *testing.T) {
@@ -72,11 +81,11 @@ func TestBasicSophieTypes(t *testing.T) {
 	sa = ""
 	readWrite(t, &sa, &sb, 1)
 	assert.Equals(t, "sb", sb, sa)
-	
+
 	sa = "Hello"
 	readWrite(t, &sa, &sb, 6)
 	assert.Equals(t, "sb", sb, sa)
-	
+
 	sa = ""
 	for len(sa) < 127 {
 		sa += "a"
@@ -84,7 +93,7 @@ func TestBasicSophieTypes(t *testing.T) {
 	readWrite(t, &sa, &sb, 128)
 	assert.Equals(t, "sb", sb, sa)
 	sa = ""
-	
+
 	for len(sa) < 128 {
 		sa += "a"
 	}

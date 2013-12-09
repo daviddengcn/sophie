@@ -8,11 +8,13 @@ import (
 type Reader interface {
 	io.Reader
 	io.ByteReader
+	io.Closer
 }
 
 type Writer interface {
 	io.Writer
 	io.ByteWriter
+	io.Closer
 }
 
 type Sophier interface {
@@ -65,12 +67,12 @@ func (i *VInt) ReadFrom(r Reader) error {
 		return err
 	}
 	v = VInt(b & 0x7f)
-	for n := VInt(7); b & 0x80 != 0; n += 7 {
+	for n := VInt(7); b&0x80 != 0; n += 7 {
 		b, err = r.ReadByte()
 		if err != nil {
 			return err
 		}
-		v |= VInt(b & 0x7f) << n
+		v |= VInt(b&0x7f) << n
 	}
 	*i = v
 	return nil
@@ -98,11 +100,11 @@ func (ba *ByteArray) ReadFrom(r Reader) error {
 	if VInt(cap(*ba)) < l {
 		*ba = make(ByteArray, l)
 	}
-	
+
 	if VInt(len(*ba)) != l {
 		*ba = (*ba)[:l]
 	}
-	
+
 	_, err := r.Read(*ba)
 	return err
 }
@@ -119,8 +121,22 @@ func (s *String) ReadFrom(r Reader) error {
 	if err := ba.ReadFrom(r); err != nil {
 		return err
 	}
-	
+
 	*s = String(ba)
-	
+
 	return nil
 }
+
+func (s *String) String() string {
+	return string(*s)
+}
+
+type Null struct{}
+func (Null) WriteTo(w Writer) error {
+	return nil
+}
+
+func (Null) ReadFrom(r Reader) error {
+	return nil
+}
+
