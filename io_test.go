@@ -16,7 +16,6 @@ func (bc BufferCloser) Close() error {
 	return nil
 }
 
-
 func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	var buf bytes.Buffer
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v", sa),

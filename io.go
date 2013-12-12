@@ -17,9 +17,16 @@ type Writer interface {
 	io.Closer
 }
 
-type Sophier interface {
+type SophieReader interface {
 	ReadFrom(r Reader) error
+}
+type SophieWriter interface {
 	WriteTo(w Writer) error
+}
+
+type Sophier interface {
+	SophieReader
+	SophieWriter
 }
 
 // *SInt32 implements Sophie interface
@@ -132,6 +139,7 @@ func (s *String) String() string {
 }
 
 type Null struct{}
+
 func (Null) WriteTo(w Writer) error {
 	return nil
 }
@@ -139,4 +147,3 @@ func (Null) WriteTo(w Writer) error {
 func (Null) ReadFrom(r Reader) error {
 	return nil
 }
-
