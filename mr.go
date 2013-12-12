@@ -2,6 +2,7 @@ package sophie
 
 import (
 	"errors"
+	"io"
 	"fmt"
 	"sort"
 
@@ -12,14 +13,28 @@ var (
 	EOF = errors.New("EOF")
 )
 
+type EmptyClose struct {}
+
+func (EmptyClose) Close() error {
+	return nil
+}
+
 type Iterator interface {
 	Next(key, val SophieReader) error
-	Close() error
+}
+
+type IterateCloser interface {
+	Iterator
+	io.Closer
 }
 
 type Collector interface {
 	Collect(key, val SophieWriter) error
-	Close() error
+}
+
+type CollectCloser interface {
+	Collector
+	io.Closer
 }
 
 type PartCollector interface {
@@ -29,16 +44,23 @@ type PartCollector interface {
 type OnlyMapper interface {
 	NewKey() Sophier
 	NewVal() Sophier
-	Map(key, val Sophier, c Collector) error
+	Map(key, val SophieWriter, c Collector) error
+	MapEnd(c Collector) error
+}
+
+type EmptyOnlyMapper struct {}
+
+func (EmptyOnlyMapper) MapEnd(c Collector) error {
+	return nil
 }
 
 type Input interface {
 	PartCount() (int, error)
-	Iterator(index int) (Iterator, error)
+	Iterator(index int) (IterateCloser, error)
 }
 
 type Output interface {
-	Collector(index int) (Collector, error)
+	Collector(index int) (CollectCloser, error)
 }
 
 type MapOnlyJob struct {
@@ -70,6 +92,9 @@ func (job *MapOnlyJob) Run() error {
 
 		for {
 			if err := iter.Next(key, val); err != nil {
+				if err != EOF {
+					return err
+				}
 				break
 			}
 
@@ -85,7 +110,14 @@ func (job *MapOnlyJob) Run() error {
 type Mapper interface {
 	NewKey() Sophier
 	NewVal() Sophier
-	Map(key, val Sophier, c PartCollector) error
+	Map(key, val SophieWriter, c PartCollector) error
+	MapEnd(c PartCollector) error
+}
+
+type EmptyMapper struct {}
+
+func (m EmptyMapper) MapEnd(c PartCollector) error {
+	return nil
 }
 
 type SophierIterator func() (Sophier, error)
@@ -93,7 +125,7 @@ type SophierIterator func() (Sophier, error)
 type Reducer interface {
 	NewKey() Sophier
 	NewVal() Sophier
-	Reduce(key Sophier, vals SophierIterator, c Collector) error
+	Reduce(key SophieWriter, nextVal SophierIterator, c Collector) error
 }
 
 type MrJob struct {
@@ -234,7 +266,10 @@ func (job *MrJob) Run() error {
 
 		for {
 			if err := iter.Next(key, val); err != nil {
-				break
+				if err == EOF {
+					break
+				}
+				return err
 			}
 
 			if err := mapper.Map(key, val, sorters); err != nil {
@@ -243,7 +278,7 @@ func (job *MrJob) Run() error {
 		}
 	}
 
-	fmt.Printf("Mapper ends, begin to reduce\n")
+	fmt.Printf("Map ends, begin to reduce\n")
 
 	for part, sorter := range sorters {
 		fmt.Printf("Sorting part %d: %d entries\n", part, len(sorter.KeyOffs))
@@ -253,6 +288,7 @@ func (job *MrJob) Run() error {
 		if err != nil {
 			return err
 		}
+		defer c.Close()
 		sorter.Iterate(c, job.Reducer)
 	}
 

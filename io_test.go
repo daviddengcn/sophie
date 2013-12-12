@@ -8,18 +8,10 @@ import (
 	"github.com/daviddengcn/go-assert"
 )
 
-type BufferCloser struct {
-	*bytes.Buffer
-}
-
-func (bc BufferCloser) Close() error {
-	return nil
-}
-
 func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	var buf bytes.Buffer
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v", sa),
-		sa.WriteTo(BufferCloser{&buf}))
+		sa.WriteTo(&buf))
 
 	if outBytes >= 0 {
 		assert.Equals(t, fmt.Sprintf("readWrite(%v): buf.Len", sa), buf.Len(),
@@ -27,7 +19,7 @@ func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	}
 
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sb.ReadFrom failed: %%v",
-		sa), sb.ReadFrom(BufferCloser{&buf}))
+		sa), sb.ReadFrom(&buf))
 }
 
 func TestBasicSophieTypes(t *testing.T) {

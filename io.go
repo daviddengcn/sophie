@@ -8,12 +8,20 @@ import (
 type Reader interface {
 	io.Reader
 	io.ByteReader
+}
+
+type ReadCloser interface {
+	Reader
 	io.Closer
 }
 
 type Writer interface {
 	io.Writer
 	io.ByteWriter
+}
+
+type WriteCloser interface {
+	Writer
 	io.Closer
 }
 

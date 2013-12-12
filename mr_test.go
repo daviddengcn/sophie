@@ -1,7 +1,6 @@
 package sophie
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -11,20 +10,17 @@ import (
 )
 
 type linesIter struct {
+	EmptyClose
 	pos   int
 	lines []string
 }
 
 func (iter *linesIter) Next(key, val SophieReader) error {
 	if iter.pos >= len(iter.lines) {
-		return errors.New("EOF")
+		return EOF
 	}
 	*(key.(*String)) = String(iter.lines[iter.pos])
 	iter.pos++
-	return nil
-}
-
-func (iter *linesIter) Close() error {
 	return nil
 }
 
@@ -34,15 +30,18 @@ func (lines linesInput) PartCount() (int, error) {
 	return 1, nil
 }
 
-func (lines linesInput) Iterator(int) (Iterator, error) {
+func (lines linesInput) Iterator(int) (IterateCloser, error) {
 	return &linesIter{lines: lines}, nil
 }
 
 type LinesCounterMapper struct {
+	EmptyOnlyMapper
+	EmptyClose
+	
 	intList []Int32
 }
 
-func (lcm *LinesCounterMapper) Collector(index int) (Collector, error) {
+func (lcm *LinesCounterMapper) Collector(index int) (CollectCloser, error) {
 	return lcm, nil
 }
 
@@ -62,13 +61,9 @@ func (lcm *LinesCounterMapper) NewKey() Sophier {
 func (lcm *LinesCounterMapper) NewVal() Sophier {
 	return Null{}
 }
-func (lcm *LinesCounterMapper) Map(key, val Sophier, c Collector) error {
+func (lcm *LinesCounterMapper) Map(key, val SophieWriter, c Collector) error {
 	fmt.Printf("Mapping (%v, %v) ...\n", key, val)
 	c.Collect(Int32(1), Null{})
-	return nil
-}
-
-func (lcm *LinesCounterMapper) Close() error {
 	return nil
 }
 
@@ -99,6 +94,7 @@ func TestMapOnly(t *testing.T) {
 }
 
 type WordCountMapper struct {
+	EmptyMapper
 }
 
 func (wcm *WordCountMapper) NewKey() Sophier {
@@ -108,7 +104,7 @@ func (wcm *WordCountMapper) NewVal() Sophier {
 	return Null{}
 }
 
-func (wcm *WordCountMapper) Map(key, val Sophier, c PartCollector) error {
+func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 	fmt.Printf("WordCountMapper (%v, %v) ...\n", key, val)
 	line := *(key.(*String))
 	words := strings.Split(string(line), " ")
@@ -124,6 +120,7 @@ func (wcm *WordCountMapper) Map(key, val Sophier, c PartCollector) error {
 }
 
 type WordCountReducer struct {
+	EmptyClose
 }
 
 func (wc *WordCountReducer) NewKey() Sophier {
@@ -134,7 +131,8 @@ func (wc *WordCountReducer) NewVal() Sophier {
 	return new(VInt)
 }
 
-func (wc *WordCountReducer) Reduce(key Sophier, nextVal SophierIterator, c Collector) error {
+func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
+		c Collector) error {
 	fmt.Printf("Reducing %v\n", key)
 	var count VInt
 	for {
@@ -153,12 +151,8 @@ func (wc *WordCountReducer) Collect(key, val SophieWriter) error {
 	return nil
 }
 
-func (wc *WordCountReducer) Collector(index int) (Collector, error) {
+func (wc *WordCountReducer) Collector(index int) (CollectCloser, error) {
 	return wc, nil
-}
-
-func (wc *WordCountReducer) Close() error {
-	return nil
 }
 
 func TestMapReduce(t *testing.T) {
