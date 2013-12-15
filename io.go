@@ -58,6 +58,10 @@ func (i *Int32) ReadFrom(r Reader) error {
 	return nil
 }
 
+func (i *Int32) Val() int32 {
+	return int32(*i)
+}
+
 // *SVInt implements Sophie interface and serializing as a vint
 type VInt uint64
 
@@ -91,6 +95,10 @@ func (i *VInt) ReadFrom(r Reader) error {
 	}
 	*i = v
 	return nil
+}
+
+func (i *VInt) Val() int64 {
+	return int64(*i)
 }
 
 func (i *VInt) String() string {
@@ -143,6 +151,9 @@ func (s *String) ReadFrom(r Reader) error {
 }
 
 func (s *String) String() string {
+	return string(*s)
+}
+func (s *String) Val() string {
 	return string(*s)
 }
 

@@ -2,6 +2,7 @@ package sophie
 
 import (
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
@@ -37,7 +38,7 @@ func (lines linesInput) Iterator(int) (IterateCloser, error) {
 type LinesCounterMapper struct {
 	EmptyOnlyMapper
 	EmptyClose
-	
+
 	intList []Int32
 }
 
@@ -62,7 +63,7 @@ func (lcm *LinesCounterMapper) NewVal() Sophier {
 	return Null{}
 }
 func (lcm *LinesCounterMapper) Map(key, val SophieWriter, c Collector) error {
-	fmt.Printf("Mapping (%v, %v) ...\n", key, val)
+	//fmt.Printf("Mapping (%v, %v) ...\n", key, val)
 	c.Collect(Int32(1), Null{})
 	return nil
 }
@@ -105,7 +106,7 @@ func (wcm *WordCountMapper) NewVal() Sophier {
 }
 
 func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
-	fmt.Printf("WordCountMapper (%v, %v) ...\n", key, val)
+	//fmt.Printf("WordCountMapper (%v, %v) ...\n", key, val)
 	line := *(key.(*String))
 	words := strings.Split(string(line), " ")
 	for _, word := range words {
@@ -113,7 +114,7 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 			continue
 		}
 		word = strings.ToLower(word)
-		fmt.Printf("CollectTo %v\n", word)
+		//fmt.Printf("CollectTo %v\n", word)
 		c.CollectTo(int(word[0]), String(word), VInt(1))
 	}
 	return nil
@@ -121,6 +122,8 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 
 type WordCountReducer struct {
 	EmptyClose
+	sync.Mutex
+	counts map[string]int
 }
 
 func (wc *WordCountReducer) NewKey() Sophier {
@@ -132,8 +135,8 @@ func (wc *WordCountReducer) NewVal() Sophier {
 }
 
 func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
-		c Collector) error {
-	fmt.Printf("Reducing %v\n", key)
+	c Collector) error {
+	//	fmt.Printf("Reducing %v\n", key)
 	var count VInt
 	for {
 		val, err := nextVal()
@@ -147,7 +150,11 @@ func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 }
 
 func (wc *WordCountReducer) Collect(key, val SophieWriter) error {
-	fmt.Printf("Result %v: %v\n", key, val)
+	wc.Lock()
+	defer wc.Unlock()
+
+	wc.counts[key.(*String).Val()] = int(val.(VInt))
+	//	fmt.Printf("Result %v: %v\n", key, val)
 	return nil
 }
 
@@ -155,11 +162,27 @@ func (wc *WordCountReducer) Collector(index int) (CollectCloser, error) {
 	return wc, nil
 }
 
+func statWords(text string) map[string]int {
+	cnts := make(map[string]int)
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		words := strings.Split(line, " ")
+		for _, word := range words {
+			if word == "" {
+				continue
+			}
+			word = strings.ToLower(word)
+			cnts[word] = cnts[word] + 1
+		}
+	}
+	return cnts
+}
+
 func TestMapReduce(t *testing.T) {
 	lines := linesInput(strings.Split(WORDS, "\n"))
 
 	var mapper WordCountMapper
-	var reducer WordCountReducer
+	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
 		Mapper:  &mapper,
@@ -169,4 +192,13 @@ func TestMapReduce(t *testing.T) {
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
+
+	expCnts := statWords(WORDS)
+	fmt.Println(reducer.counts)
+	fmt.Println(expCnts)
+
+	assert.Equals(t, "count", len(reducer.counts), len(expCnts))
+	for k, v := range expCnts {
+		assert.Equals(t, "count of "+k, v, reducer.counts[k])
+	}
 }

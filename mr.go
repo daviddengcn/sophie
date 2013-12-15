@@ -2,8 +2,8 @@ package sophie
 
 import (
 	"errors"
-	"io"
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/daviddengcn/go-villa"
@@ -13,7 +13,7 @@ var (
 	EOF = errors.New("EOF")
 )
 
-type EmptyClose struct {}
+type EmptyClose struct{}
 
 func (EmptyClose) Close() error {
 	return nil
@@ -48,7 +48,7 @@ type OnlyMapper interface {
 	MapEnd(c Collector) error
 }
 
-type EmptyOnlyMapper struct {}
+type EmptyOnlyMapper struct{}
 
 func (EmptyOnlyMapper) MapEnd(c Collector) error {
 	return nil
@@ -114,7 +114,7 @@ type Mapper interface {
 	MapEnd(c PartCollector) error
 }
 
-type EmptyMapper struct {}
+type EmptyMapper struct{}
 
 func (m EmptyMapper) MapEnd(c PartCollector) error {
 	return nil
