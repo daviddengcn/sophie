@@ -1,45 +1,36 @@
 package sophie
 
 import (
-	"bufio"
 	"bytes"
+	"errors"
 	"io"
-	"os"
-
-	"github.com/daviddengcn/go-villa"
 )
 
-type FilePath struct {
-	Fs   string
-	Path villa.Path
-}
+var (
+	ErrBadFormat = errors.New("bad kv format")
+)
 
 /*
 	KVFile format:
 	vint(key-len) key vint(val-len) val
 */
 type KVWriter struct {
-	file   *os.File
-	writer *bufio.Writer
+	writer WriteCloser
 	objBuf bytes.Buffer
 }
 
-func NewKVWriter(fn FilePath) (*KVWriter, error) {
-	file, err := fn.Path.Create()
+func NewKVWriter(fp FsPath) (*KVWriter, error) {
+	writer, err := fp.Fs.Create(fp.Path)
 	if err != nil {
 		return nil, err
 	}
 	return &KVWriter{
-		file:   file,
-		writer: bufio.NewWriter(file),
+		writer: writer,
 	}, nil
 }
 
 func (kvw *KVWriter) Close() error {
-	if err := kvw.writer.Flush(); err != nil {
-		return err
-	}
-	return kvw.file.Close()
+	return kvw.writer.Close()
 }
 
 func (kvw *KVWriter) Collect(key, val SophieWriter) error {
@@ -65,24 +56,48 @@ func (kvw *KVWriter) Collect(key, val SophieWriter) error {
 	return nil
 }
 
-type KVReader struct {
-	file   *os.File
-	reader *bufio.Reader
+type CountedReadCloser struct {
+	Pos int64
+	ReadCloser
 }
 
-func NewKVReader(fn FilePath) (*KVReader, error) {
-	file, err := fn.Path.Open()
+func (r *CountedReadCloser) Read(p []byte) (n int, err error) {
+	n, err = r.ReadCloser.Read(p)
+	r.Pos += int64(n)
+	return n, err
+}
+
+func (r *CountedReadCloser) ReadByte() (c byte, err error) {
+	c, err = r.ReadCloser.ReadByte()
+	if err != nil {
+		return c, err
+	}
+	r.Pos++
+	return c, nil
+}
+
+func CountReadCloser(reader ReadCloser) *CountedReadCloser {
+	return &CountedReadCloser{
+		ReadCloser: reader,
+	}
+}
+
+type KVReader struct {
+	reader *CountedReadCloser
+}
+
+func NewKVReader(fp FsPath) (*KVReader, error) {
+	reader, err := fp.Fs.Open(fp.Path)
 	if err != nil {
 		return nil, err
 	}
 	return &KVReader{
-		file:   file,
-		reader: bufio.NewReader(file),
+		reader: CountReadCloser(reader),
 	}, nil
 }
 
 func (kvr *KVReader) Close() error {
-	return kvr.file.Close()
+	return kvr.reader.Close()
 }
 
 func (kvr *KVReader) Next(key, val SophieReader) error {
@@ -93,24 +108,32 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 		}
 		return err
 	}
+	posEnd := kvr.reader.Pos + int64(l)
 	if err := key.ReadFrom(kvr.reader); err != nil {
 		if err == io.EOF {
-			return EOF
+			return ErrBadFormat
 		}
 		return err
+	}
+	if kvr.reader.Pos != posEnd {
+		return ErrBadFormat
 	}
 
 	if err := (&l).ReadFrom(kvr.reader); err != nil {
 		if err == io.EOF {
-			return EOF
+			return ErrBadFormat
 		}
 		return err
 	}
+	posEnd = kvr.reader.Pos + int64(l)
 	if err := val.ReadFrom(kvr.reader); err != nil {
 		if err == io.EOF {
-			return EOF
+			return ErrBadFormat
 		}
 		return err
+	}
+	if kvr.reader.Pos != posEnd {
+		return ErrBadFormat
 	}
 	return nil
 }

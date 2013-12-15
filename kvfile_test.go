@@ -9,8 +9,8 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	fn := villa.Path("./test.kv")
-	defer fn.Remove()
+	fn := FsPath{Fs: LocalFS, Path: "./test.kv"}
+	defer villa.Path(fn.Path).Remove()
 
 	keys := []String{
 		"abc", "def",
@@ -19,7 +19,7 @@ func TestBasic(t *testing.T) {
 		2, 2013,
 	}
 
-	writer, err := NewKVWriter(FilePath{Path: fn})
+	writer, err := NewKVWriter(fn)
 	assert.NoErrorf(t, "NewKVWriter: %v", err)
 
 	for i, key := range keys {
@@ -28,7 +28,7 @@ func TestBasic(t *testing.T) {
 	}
 	assert.NoErrorf(t, "writer.Close()", writer.Close())
 
-	reader, err := NewKVReader(FilePath{Path: fn})
+	reader, err := NewKVReader(fn)
 	assert.NoErrorf(t, "NewKVReader: %v", err)
 
 	var key String

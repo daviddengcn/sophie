@@ -1,13 +1,13 @@
 package sophie
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
-
-	"fmt"
+	"github.com/daviddengcn/go-villa"
 )
 
 type linesIter struct {
@@ -178,6 +178,13 @@ func statWords(text string) map[string]int {
 	return cnts
 }
 
+func assertMapEquals(t *testing.T, act, exp map[string]int) {
+	assert.Equals(t, "count", len(act), len(exp))
+	for k, v := range exp {
+		assert.Equals(t, "count of "+k, v, act[k])
+	}
+}
+
 func TestMapReduce(t *testing.T) {
 	lines := linesInput(strings.Split(WORDS, "\n"))
 
@@ -197,8 +204,84 @@ func TestMapReduce(t *testing.T) {
 	fmt.Println(reducer.counts)
 	fmt.Println(expCnts)
 
-	assert.Equals(t, "count", len(reducer.counts), len(expCnts))
-	for k, v := range expCnts {
-		assert.Equals(t, "count of "+k, v, reducer.counts[k])
+	assertMapEquals(t, reducer.counts, expCnts)
+}
+
+func TestMRFromFile(t *testing.T) {
+	mrinPath := villa.Path("./mrin")
+	mrinPath.Mkdir(0755)
+
+	mroutPath := villa.Path("./mrout")
+
+	mrin := FsPath{
+		Fs:   LocalFS,
+		Path: mrinPath.S(),
 	}
+
+	var inF *KVWriter = nil
+	index := 0
+	lines := strings.Split(WORDS, "\n")
+	for i, line := range lines {
+		if i%3 == 0 {
+			if inF != nil {
+				assert.NoErrorf(t, "inF.Close: %v", inF.Close())
+				index++
+			}
+			var err error
+			inF, err = NewKVWriter(mrin.Join(fmt.Sprintf("part-%05d", index)))
+			assert.NoErrorf(t, "NewKVWriter: %v", err)
+		}
+
+		assert.NoErrorf(t, "inF.Collect", inF.Collect(String(line), Null{}))
+	}
+	if inF != nil {
+		assert.NoErrorf(t, "inF.Close: %v", inF.Close())
+	}
+
+	var mapper WordCountMapper
+	reducer := WordCountReducer{counts: make(map[string]int)}
+
+	job := MrJob{
+		Source: KVDirInput{
+			Fs:   LocalFS,
+			Path: mrinPath.S(),
+		},
+		Mapper: &mapper,
+
+		Reducer: &reducer,
+		Dest: KVDirOutput{
+			Fs:   LocalFS,
+			Path: mroutPath.S(),
+		},
+	}
+
+	assert.NoErrorf(t, "RunJob: %v", job.Run())
+
+	resIn := KVDirInput{
+		Fs:   LocalFS,
+		Path: mroutPath.S(),
+	}
+	n, err := resIn.PartCount()
+	assert.NoErrorf(t, "resIn.PartCount(): %v", err)
+	var word String
+	var cnt VInt
+	actCnts := make(map[string]int)
+	for i := 0; i < n; i++ {
+		iter, err := resIn.Iterator(i)
+		assert.NoErrorf(t, "resIn.Iterator: %v", err)
+		for {
+			err := iter.Next(&word, &cnt)
+			if err == EOF {
+				break
+			}
+			assert.NoErrorf(t, "iter.Next: %v", err)
+			actCnts[string(word)] = int(cnt)
+		}
+	}
+
+	expCnts := statWords(WORDS)
+	fmt.Println(expCnts)
+	fmt.Println(actCnts)
+
+	assertMapEquals(t, actCnts, expCnts)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
 
 	"github.com/daviddengcn/go-villa"
 )
@@ -226,13 +227,23 @@ func (ms *MemSorter) Iterate(c Collector, r Reducer) error {
 	return nil
 }
 
-type MemSorters map[int]*MemSorter
+type MemSorters struct {
+	sync.RWMutex
+	sorters map[int]*MemSorter
+}
 
-func (ms MemSorters) CollectTo(part int, key, val SophieWriter) error {
-	sorter, ok := ms[part]
+func (ms *MemSorters) CollectTo(part int, key, val SophieWriter) error {
+	ms.RLock()
+	sorter, ok := ms.sorters[part]
+	ms.RUnlock()
 	if !ok {
-		sorter = &MemSorter{}
-		ms[part] = sorter
+		ms.Lock()
+		sorter, ok = ms.sorters[part]
+		if !ok {
+			sorter = &MemSorter{}
+			ms.sorters[part] = sorter
+		}
+		ms.Unlock()
 	}
 	sorter.KeyOffs.Add(len(sorter.Buffer))
 	key.WriteTo(&sorter.Buffer)
@@ -255,41 +266,72 @@ func (job *MrJob) Run() error {
 	mapper := job.Mapper
 	key, val := mapper.NewKey(), mapper.NewVal()
 
-	sorters := make(MemSorters)
+	sorters := &MemSorters{
+		sorters: make(map[int]*MemSorter),
+	}
+
+	ends := make([]chan error, partCount)
 
 	for i := 0; i < partCount; i++ {
-		iter, err := job.Source.Iterator(i)
+		ends[i] = make(chan error, 1)
+		go func(part int, end chan error) {
+			iter, err := job.Source.Iterator(part)
+			if err != nil {
+				end <- err
+				return
+			}
+			defer iter.Close()
+
+			for {
+				if err := iter.Next(key, val); err != nil {
+					if err == EOF {
+						break
+					}
+					end <- err
+					return
+				}
+
+				if err := mapper.Map(key, val, sorters); err != nil {
+					end <- err
+					return
+				}
+			}
+			fmt.Printf("Iterator %d finished\n", part)
+			end <- nil
+		}(i, ends[i])
+	}
+
+	for _, end := range ends {
+		err := <-end
 		if err != nil {
 			return err
-		}
-		defer iter.Close()
-
-		for {
-			if err := iter.Next(key, val); err != nil {
-				if err == EOF {
-					break
-				}
-				return err
-			}
-
-			if err := mapper.Map(key, val, sorters); err != nil {
-				return err
-			}
 		}
 	}
 
 	fmt.Printf("Map ends, begin to reduce\n")
 
-	for part, sorter := range sorters {
-		fmt.Printf("Sorting part %d: %d entries\n", part, len(sorter.KeyOffs))
-		sort.Sort(sorter)
-		fmt.Printf("Sorted: %v\n", sorter.KeyOffs)
-		c, err := job.Dest.Collector(part)
+	ends = ends[:0]
+	for part, sorter := range sorters.sorters {
+		end := make(chan error, 1)
+		ends = append(ends, end)
+		go func(part int, sorter *MemSorter, end chan error) {
+			fmt.Printf("Sorting part %d: %d entries\n", part, len(sorter.KeyOffs))
+			sort.Sort(sorter)
+			c, err := job.Dest.Collector(part)
+			if err != nil {
+				end <- err
+				return
+			}
+			defer c.Close()
+			end <- sorter.Iterate(c, job.Reducer)
+		}(part, sorter, end)
+	}
+
+	for _, end := range ends {
+		err := <-end
 		if err != nil {
 			return err
 		}
-		defer c.Close()
-		sorter.Iterate(c, job.Reducer)
 	}
 
 	return nil
