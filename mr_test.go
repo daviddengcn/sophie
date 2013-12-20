@@ -122,6 +122,7 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 
 type WordCountReducer struct {
 	EmptyClose
+	EmptyReducer
 	sync.Mutex
 	counts map[string]int
 }
@@ -192,8 +193,8 @@ func TestMapReduce(t *testing.T) {
 	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
-		Mapper:  &mapper,
-		Reducer: &reducer,
+		MapFactory: SingleMapperFactory(&mapper),
+		RedFactory: SingleReducerFactory(&reducer),
 		Source:  lines,
 		Dest:    &reducer,
 	}
@@ -246,9 +247,9 @@ func TestMRFromFile(t *testing.T) {
 			Fs:   LocalFS,
 			Path: mrinPath.S(),
 		},
-		Mapper: &mapper,
+		MapFactory: SingleMapperFactory(&mapper),
 
-		Reducer: &reducer,
+		RedFactory: SingleReducerFactory(&reducer),
 		Dest: KVDirOutput{
 			Fs:   LocalFS,
 			Path: mroutPath.S(),

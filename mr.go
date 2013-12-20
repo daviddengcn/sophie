@@ -117,8 +117,24 @@ type Mapper interface {
 
 type EmptyMapper struct{}
 
-func (m EmptyMapper) MapEnd(c PartCollector) error {
+func (EmptyMapper) MapEnd(c PartCollector) error {
 	return nil
+}
+
+type MapperFactory interface {
+	NewMapper(part int) Mapper
+}
+
+type singleMapperFactory struct {
+	Mapper
+}
+
+func (self singleMapperFactory) NewMapper(part int) Mapper {
+	return self.Mapper
+}
+
+func SingleMapperFactory(mapper Mapper) MapperFactory {
+	return singleMapperFactory{mapper}
 }
 
 type SophierIterator func() (Sophier, error)
@@ -127,11 +143,32 @@ type Reducer interface {
 	NewKey() Sophier
 	NewVal() Sophier
 	Reduce(key SophieWriter, nextVal SophierIterator, c Collector) error
+	ReduceEnd(c Collector) error
+}
+
+type EmptyReducer struct{}
+
+func (EmptyReducer) ReduceEnd(c Collector) error {
+	return nil
+}
+
+type ReducerFactory interface {
+	NewReducer(part int) Reducer
+}
+
+type singleReducerFactory struct {
+	Reducer
+}
+func (self singleReducerFactory) NewReducer(part int) Reducer {
+	return self.Reducer
+}
+func SingleReducerFactory(reducer Reducer) ReducerFactory {
+	return singleReducerFactory{reducer}
 }
 
 type MrJob struct {
-	Mapper  Mapper
-	Reducer Reducer
+	MapFactory MapperFactory
+	RedFactory ReducerFactory
 
 	Source Input
 	Dest   Output
@@ -223,6 +260,8 @@ func (ms *MemSorter) Iterate(c Collector, r Reducer) error {
 		// nextKey stores the key of the current idx
 		key, nextKey = nextKey, key
 	}
+	
+	r.ReduceEnd(c)
 
 	return nil
 }
@@ -263,9 +302,6 @@ func (job *MrJob) Run() error {
 		return err
 	}
 
-	mapper := job.Mapper
-	key, val := mapper.NewKey(), mapper.NewVal()
-
 	sorters := &MemSorters{
 		sorters: make(map[int]*MemSorter),
 	}
@@ -275,6 +311,8 @@ func (job *MrJob) Run() error {
 	for i := 0; i < partCount; i++ {
 		ends[i] = make(chan error, 1)
 		go func(part int, end chan error) {
+			mapper := job.MapFactory.NewMapper(part)
+			key, val := mapper.NewKey(), mapper.NewVal()
 			iter, err := job.Source.Iterator(part)
 			if err != nil {
 				end <- err
@@ -296,6 +334,7 @@ func (job *MrJob) Run() error {
 					return
 				}
 			}
+			mapper.MapEnd(sorters)
 			fmt.Printf("Iterator %d finished\n", part)
 			end <- nil
 		}(i, ends[i])
@@ -323,7 +362,8 @@ func (job *MrJob) Run() error {
 				return
 			}
 			defer c.Close()
-			end <- sorter.Iterate(c, job.Reducer)
+			reducer := job.RedFactory.NewReducer(part)
+			end <- sorter.Iterate(c, reducer)
 		}(part, sorter, end)
 	}
 
