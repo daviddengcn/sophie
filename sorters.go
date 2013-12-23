@@ -83,7 +83,7 @@ func (ms *MemSorter) Iterate(c Collector, r Reducer) error {
 		idx++
 
 		curVal := val
-		
+
 		valIter := func() (s Sophier, err error) {
 			if curVal == nil {
 				return nil, EOF
@@ -124,7 +124,7 @@ func (ms *MemSorter) Iterate(c Collector, r Reducer) error {
 		// nextKey stores the key of the current idx
 		key, nextKey = nextKey, key
 	}
-	
+
 	r.ReduceEnd(c)
 
 	return nil
@@ -150,7 +150,7 @@ func (ms *MemSorters) CollectTo(part int, key, val SophieWriter) error {
 	}
 	sorter.Lock()
 	defer sorter.Unlock()
-	
+
 	sorter.KeyOffs.Add(len(sorter.Buffer))
 	key.WriteTo(&sorter.Buffer)
 	sorter.ValOffs.Add(len(sorter.Buffer))
@@ -191,16 +191,16 @@ func (ms *MemSorters) NewReduceIterator(part int) (ReduceIterator, error) {
 type mapOut struct {
 	sync.Mutex
 	rawPath FsPath
-	writer *KVWriter
-	reader *KVReader
+	writer  *KVWriter
+	reader  *KVReader
 }
 
 func (mo *mapOut) Collect(key, val SophieWriter) error {
 	mo.Lock()
 	defer mo.Unlock()
-	
+
 	// fmt.Println("Collect", key, val)
-	
+
 	return mo.writer.Collect(key, val)
 }
 
@@ -214,14 +214,14 @@ func sophieCmp(a, b Sophier) int {
 func (mo *mapOut) Iterate(c Collector, r Reducer) error {
 	key, val := r.NewKey(), r.NewVal()
 	err := mo.reader.Next(key, val)
-	if err !=  nil {
+	if err != nil {
 		if err == EOF {
 			// empty input
 			return nil
 		}
 		return err
 	}
-	
+
 	nextKey, nextVal := r.NewKey(), r.NewVal()
 	for {
 		curVal := val
@@ -230,7 +230,7 @@ func (mo *mapOut) Iterate(c Collector, r Reducer) error {
 				return nil, EOF
 			}
 			s, curVal = curVal, nil
-			
+
 			err = mo.reader.Next(nextKey, nextVal)
 			if err != nil {
 				if err != EOF {
@@ -262,7 +262,7 @@ func (mo *mapOut) Iterate(c Collector, r Reducer) error {
 		key, nextKey = nextKey, key
 		val, nextVal = nextVal, val
 	}
-	
+
 	r.ReduceEnd(c)
 
 	return nil
@@ -271,19 +271,19 @@ func (mo *mapOut) Iterate(c Collector, r Reducer) error {
 type FileSorter struct {
 	sync.RWMutex
 	TmpFolder FsPath
-	mapOuts map[int]*mapOut
+	mapOuts   map[int]*mapOut
 	sortToken chan bool
 }
 
 func NewFileSorter(TmpFolder FsPath) *FileSorter {
 	sortToken := make(chan bool, 2)
-	for i := 0; i < 2; i ++ {
+	for i := 0; i < 2; i++ {
 		sortToken <- true
 	}
-	return &FileSorter {
+	return &FileSorter{
 		TmpFolder: TmpFolder,
-		mapOuts: make(map[int]*mapOut),
-		sortToken : sortToken,
+		mapOuts:   make(map[int]*mapOut),
+		sortToken: sortToken,
 	}
 }
 
@@ -325,7 +325,6 @@ func (fs *FileSorter) ClosePartCollectors() (err error) {
 	return err
 }
 
-
 func (fs *FileSorter) ReduceParts() []int {
 	parts := make([]int, 0, len(fs.mapOuts))
 	for part, _ := range fs.mapOuts {
@@ -364,7 +363,7 @@ func (fs *FileSorter) NewReduceIterator(part int) (ReduceIterator, error) {
 	defer func() {
 		fs.sortToken <- true
 	}()
-	
+
 	// read
 	var os offsSorter
 	var err error
@@ -383,13 +382,13 @@ func (fs *FileSorter) NewReduceIterator(part int) (ReduceIterator, error) {
 		os.ValOffs, os.ValEnds); err != nil {
 		return nil, err
 	}
-	
+
 	// fmt.Println("redIn written to", redIn.Path)
-	
+
 	mo.reader, err = NewKVReader(redIn)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return mo, nil
 }

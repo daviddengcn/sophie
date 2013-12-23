@@ -27,9 +27,11 @@ type WriteCloser interface {
 	io.Closer
 }
 
+const UNKNOWN_LEN = -1
+
 type SophieReader interface {
 	/**
-	 * @param len the number of bytes to read. -1 means unknown
+	 * @param len the number of bytes to read. UNKNOWN_LEN(-1) means unknown length
 	 */
 	ReadFrom(r Reader, l int) error
 }
@@ -52,10 +54,10 @@ func (i Int32) WriteTo(w Writer) error {
 }
 
 func (i *Int32) ReadFrom(r Reader, l int) error {
-	if l != -1 && l != 4 {
+	if l != UNKNOWN_LEN && l != 4 {
 		return ErrBadFormat
 	}
-	
+
 	var arr [4]byte
 	n, err := r.Read(arr[:])
 	if n < 4 {
@@ -121,7 +123,7 @@ func (i RawVInt) WriteTo(w Writer) error {
 	var arr [8]byte
 	n := 0
 	for i != 0 {
-		arr[n] = byte(i&0xff)
+		arr[n] = byte(i & 0xff)
 		n++
 		i >>= 8
 	}
@@ -135,7 +137,7 @@ func (i *RawVInt) ReadFrom(r Reader, l int) error {
 	}
 	var v RawVInt
 	n := RawVInt(0)
-	for ; l > 0; l -- {
+	for ; l > 0; l-- {
 		b, err := r.ReadByte()
 		if err != nil {
 			return err
@@ -155,9 +157,9 @@ func (i *RawVInt) String() string {
 	return fmt.Sprint(*i)
 }
 
-type ByteArray []byte
+type ByteSlice []byte
 
-func (ba ByteArray) WriteTo(w Writer) error {
+func (ba ByteSlice) WriteTo(w Writer) error {
 	if err := VInt(len(ba)).WriteTo(w); err != nil {
 		return err
 	}
@@ -165,13 +167,13 @@ func (ba ByteArray) WriteTo(w Writer) error {
 	return err
 }
 
-func (ba *ByteArray) ReadFrom(r Reader, l int) error {
+func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 	var sz VInt
-	if err := sz.ReadFrom(r, -1); err != nil {
+	if err := sz.ReadFrom(r, UNKNOWN_LEN); err != nil {
 		return err
 	}
 	if VInt(cap(*ba)) < sz {
-		*ba = make(ByteArray, sz)
+		*ba = make(ByteSlice, sz)
 	}
 
 	if VInt(len(*ba)) != sz {
@@ -182,19 +184,19 @@ func (ba *ByteArray) ReadFrom(r Reader, l int) error {
 	return err
 }
 
-type RawByteArray []byte
+type RawByteSlice []byte
 
-func (ba RawByteArray) WriteTo(w Writer) error {
+func (ba RawByteSlice) WriteTo(w Writer) error {
 	_, err := w.Write(ba)
 	return err
 }
 
-func (ba *RawByteArray) ReadFrom(r Reader, sz int) error {
+func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if sz < 0 {
 		return ErrBadFormat
 	}
 	if cap(*ba) < sz {
-		*ba = make(RawByteArray, sz)
+		*ba = make(RawByteSlice, sz)
 	}
 
 	if len(*ba) != sz {
@@ -209,11 +211,11 @@ func (ba *RawByteArray) ReadFrom(r Reader, sz int) error {
 type String string
 
 func (s String) WriteTo(w Writer) error {
-	return ByteArray(s).WriteTo(w)
+	return ByteSlice(s).WriteTo(w)
 }
 
 func (s *String) ReadFrom(r Reader, l int) error {
-	var ba ByteArray
+	var ba ByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
 		return err
 	}
@@ -234,11 +236,11 @@ func (s *String) Val() string {
 type RawString string
 
 func (s RawString) WriteTo(w Writer) error {
-	return RawByteArray(s).WriteTo(w)
+	return RawByteSlice(s).WriteTo(w)
 }
 
 func (s *RawString) ReadFrom(r Reader, l int) error {
-	var ba RawByteArray
+	var ba RawByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
 		return err
 	}
@@ -257,12 +259,14 @@ func (s *RawString) Val() string {
 
 type Null struct{}
 
+var NULL Null = Null{}
+
 func (Null) WriteTo(w Writer) error {
 	return nil
 }
 
 func (Null) ReadFrom(r Reader, l int) error {
-	if l != -1 && l != 0 {
+	if l != UNKNOWN_LEN && l != 0 {
 		return ErrBadFormat
 	}
 	return nil

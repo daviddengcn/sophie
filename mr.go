@@ -156,6 +156,7 @@ type ReducerFactory interface {
 type singleReducerFactory struct {
 	Reducer
 }
+
 func (self singleReducerFactory) NewReducer(part int) Reducer {
 	return self.Reducer
 }
@@ -166,7 +167,7 @@ func SingleReducerFactory(reducer Reducer) ReducerFactory {
 type MrJob struct {
 	MapFactory MapperFactory
 	RedFactory ReducerFactory
-	
+
 	Sorter Sorter
 
 	Source Input
@@ -185,7 +186,7 @@ func (job *MrJob) Run() error {
 	if err != nil {
 		return err
 	}
-	
+
 	sorters := job.Sorter
 	if sorters == nil {
 		fmt.Println("Using memStorters...")
@@ -212,7 +213,7 @@ func (job *MrJob) Run() error {
 					return err
 				}
 				defer iter.Close()
-	
+
 				for {
 					if err := iter.Next(key, val); err != nil {
 						if err == EOF {
@@ -220,7 +221,7 @@ func (job *MrJob) Run() error {
 						}
 						return err
 					}
-	
+
 					if err := mapper.Map(key, val, c); err != nil {
 						return err
 					}

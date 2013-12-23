@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
-//	"github.com/daviddengcn/go-villa"
+	//	"github.com/daviddengcn/go-villa"
 )
 
 type linesIter struct {
@@ -126,7 +126,7 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 		word = strings.ToLower(word)
 		//fmt.Printf("CollectTo %v\n", word)
 		c.CollectTo(int(word[0]), RawString(word), RawVInt(1))
-//		c.CollectTo(0, RawString(word), RawVInt(1))
+		//		c.CollectTo(0, RawString(word), RawVInt(1))
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 		// fmt.Println("WordCountReducer.Reduce", key, val)
 		count += *(val.(*RawVInt))
 	}
-	
+
 	// fmt.Println("WordCountReducer.Reduce c.Collect", key, count)
 
 	return c.Collect(key, count)
@@ -212,8 +212,8 @@ func TestMapReduce(t *testing.T) {
 	job := MrJob{
 		MapFactory: SingleMapperFactory(&mapper),
 		RedFactory: SingleReducerFactory(&reducer),
-		Source:  lines,
-		Dest:    &reducer,
+		Source:     lines,
+		Dest:       &reducer,
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
@@ -227,14 +227,14 @@ func TestMapReduce(t *testing.T) {
 
 func TestMRFromFile(t *testing.T) {
 	fmt.Println("TestMRFromFile starts")
-	fpRoot := FsPath {
+	fpRoot := FsPath{
 		Fs:   LocalFS,
 		Path: ".",
 	}
 
 	mrin := fpRoot.Join("mrin")
 	mrin.Mkdir(0755)
-	
+
 	mrtmp := fpRoot.Join("tmp")
 
 	/*
@@ -262,25 +262,25 @@ func TestMRFromFile(t *testing.T) {
 
 	mrout := fpRoot.Join("mrout")
 	assert.NoErrorf(t, "Remove mrout: %v", mrout.Remove())
-	
+
 	/*
 	 * MrJob
 	 */
 	var mapper WordCountMapper
 	reducer := WordCountReducer{counts: make(map[string]int)}
-	
+
 	job := MrJob{
-		Source: KVDirInput(mrin),
+		Source:     KVDirInput(mrin),
 		MapFactory: SingleMapperFactory(&mapper),
 
 		RedFactory: SingleReducerFactory(&reducer),
-		Dest: KVDirOutput(mrout),
-		
+		Dest:       KVDirOutput(mrout),
+
 		Sorter: NewFileSorter(mrtmp),
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
-	
+
 	/*
 	 * Check result
 	 */

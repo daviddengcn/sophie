@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	
+
 	"github.com/daviddengcn/go-villa"
 )
 
@@ -155,13 +155,13 @@ func ReadAsByteOffs(fp FsPath) (buffer villa.ByteSlice,
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
-	
+
 	reader, err := fp.Open()
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 	defer reader.Close()
-	
+
 	buffer = make([]byte, fi.Size())
 	if n, err := reader.Read(buffer); n != len(buffer) || err != nil {
 		if err != nil {
@@ -194,13 +194,13 @@ func ReadAsByteOffs(fp FsPath) (buffer villa.ByteSlice,
 }
 
 func WriteByteOffs(fp FsPath, buffer []byte,
-		keyOffs, keyEnds, valOffs, valEnds []int) error {
+	keyOffs, keyEnds, valOffs, valEnds []int) error {
 	writer, err := fp.Create()
 	if err != nil {
 		return err
 	}
 	defer writer.Close()
-	
+
 	for i, keyOff := range keyOffs {
 		keyEnd, valOff, valEnd := keyEnds[i], valOffs[i], valEnds[i]
 		if err := VInt(keyEnd - keyOff).WriteTo(writer); err != nil {
