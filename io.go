@@ -8,6 +8,8 @@ import (
 type Reader interface {
 	io.Reader
 	io.ByteReader
+	// Skip n bytes
+	Skip(n int64) (int64, error)
 }
 
 type ReadCloser interface {

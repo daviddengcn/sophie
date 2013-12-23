@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
-	"github.com/daviddengcn/go-villa"
+//	"github.com/daviddengcn/go-villa"
 )
 
 type linesIter struct {
@@ -115,7 +115,8 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 		}
 		word = strings.ToLower(word)
 		//fmt.Printf("CollectTo %v\n", word)
-		c.CollectTo(int(word[0]), String(word), VInt(1))
+//		c.CollectTo(int(word[0]), String(word), VInt(1))
+		c.CollectTo(0, String(word), VInt(1))
 	}
 	return nil
 }
@@ -137,15 +138,21 @@ func (wc *WordCountReducer) NewVal() Sophier {
 
 func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 	c Collector) error {
-	//	fmt.Printf("Reducing %v\n", key)
+	fmt.Printf("Reducing %v\n", key)
 	var count VInt
 	for {
 		val, err := nextVal()
-		if err != nil {
+		if err == EOF {
 			break
 		}
+		if err != nil {
+			return err
+		}
+		// fmt.Println("WordCountReducer.Reduce", key, val)
 		count += *(val.(*VInt))
 	}
+	
+	// fmt.Println("WordCountReducer.Reduce c.Collect", key, count)
 
 	return c.Collect(key, count)
 }
@@ -182,7 +189,7 @@ func statWords(text string) map[string]int {
 func assertMapEquals(t *testing.T, act, exp map[string]int) {
 	assert.Equals(t, "count", len(act), len(exp))
 	for k, v := range exp {
-		assert.Equals(t, "count of "+k, v, act[k])
+		assert.Equals(t, "count of "+k, act[k], v)
 	}
 }
 
@@ -209,16 +216,20 @@ func TestMapReduce(t *testing.T) {
 }
 
 func TestMRFromFile(t *testing.T) {
-	mrinPath := villa.Path("./mrin")
-	mrinPath.Mkdir(0755)
-
-	mroutPath := villa.Path("./mrout")
-
-	mrin := FsPath{
+	fmt.Println("TestMRFromFile starts")
+	fpRoot := FsPath {
 		Fs:   LocalFS,
-		Path: mrinPath.S(),
+		Path: ".",
 	}
 
+	mrin := fpRoot.Join("mrin")
+	mrin.Mkdir(0755)
+	
+	mrtmp := fpRoot.Join("tmp")
+
+	/*
+	 * Prepare input
+	 */
 	var inF *KVWriter = nil
 	index := 0
 	lines := strings.Split(WORDS, "\n")
@@ -239,29 +250,32 @@ func TestMRFromFile(t *testing.T) {
 		assert.NoErrorf(t, "inF.Close: %v", inF.Close())
 	}
 
+	mrout := fpRoot.Join("mrout")
+	assert.NoErrorf(t, "Remove mrout: %v", mrout.Remove())
+	
+	/*
+	 * MrJob
+	 */
 	var mapper WordCountMapper
 	reducer := WordCountReducer{counts: make(map[string]int)}
-
+	
 	job := MrJob{
-		Source: KVDirInput{
-			Fs:   LocalFS,
-			Path: mrinPath.S(),
-		},
+		Source: KVDirInput(mrin),
 		MapFactory: SingleMapperFactory(&mapper),
 
 		RedFactory: SingleReducerFactory(&reducer),
-		Dest: KVDirOutput{
-			Fs:   LocalFS,
-			Path: mroutPath.S(),
-		},
+		Dest: KVDirOutput(mrout),
+		
+		Sorter: NewFileSorter(mrtmp),
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
+	
+	/*
+	 * Check result
+	 */
 
-	resIn := KVDirInput{
-		Fs:   LocalFS,
-		Path: mroutPath.S(),
-	}
+	resIn := KVDirInput(mrout)
 	n, err := resIn.PartCount()
 	assert.NoErrorf(t, "resIn.PartCount(): %v", err)
 	var word String
@@ -285,4 +299,5 @@ func TestMRFromFile(t *testing.T) {
 	fmt.Println(actCnts)
 
 	assertMapEquals(t, actCnts, expCnts)
+	fmt.Println("TestMRFromFile ends")
 }

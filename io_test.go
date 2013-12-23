@@ -1,20 +1,20 @@
 package sophie
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
+	"github.com/daviddengcn/go-villa"
 )
 
 func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
-	var buf bytes.Buffer
-	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v", sa),
-		sa.WriteTo(&buf))
+	var buf villa.ByteSlice
+	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v",
+		sa), sa.WriteTo(&buf))
 
 	if outBytes >= 0 {
-		assert.Equals(t, fmt.Sprintf("readWrite(%v): buf.Len", sa), buf.Len(),
+		assert.Equals(t, fmt.Sprintf("readWrite(%v): buf.Len", sa), len(buf),
 			outBytes)
 	}
 
