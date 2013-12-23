@@ -113,14 +113,14 @@ func (kvr *KVReader) Close() error {
 
 func (kvr *KVReader) Next(key, val SophieReader) error {
 	var l VInt
-	if err := (&l).ReadFrom(kvr.reader); err != nil {
+	if err := (&l).ReadFrom(kvr.reader, -1); err != nil {
 		if err == io.EOF {
 			return EOF
 		}
 		return err
 	}
 	posEnd := kvr.reader.Pos + int64(l)
-	if err := key.ReadFrom(kvr.reader); err != nil {
+	if err := key.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
 			return ErrBadFormat
 		}
@@ -130,14 +130,14 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 		return ErrBadFormat
 	}
 
-	if err := (&l).ReadFrom(kvr.reader); err != nil {
+	if err := (&l).ReadFrom(kvr.reader, -1); err != nil {
 		if err == io.EOF {
 			return ErrBadFormat
 		}
 		return err
 	}
 	posEnd = kvr.reader.Pos + int64(l)
-	if err := val.ReadFrom(kvr.reader); err != nil {
+	if err := val.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
 			return ErrBadFormat
 		}
@@ -173,7 +173,7 @@ func ReadAsByteOffs(fp FsPath) (buffer villa.ByteSlice,
 	buf := CountReadCloser(villa.NewPByteSlice(buffer))
 	for buf.Pos < int64(len(buffer)) {
 		var l VInt
-		if err := (&l).ReadFrom(buf); err != nil {
+		if err := (&l).ReadFrom(buf, -1); err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
 		keyOffs = append(keyOffs, int(buf.Pos))
@@ -181,7 +181,7 @@ func ReadAsByteOffs(fp FsPath) (buffer villa.ByteSlice,
 			return nil, nil, nil, nil, nil, err
 		}
 		keyEnds = append(keyEnds, int(buf.Pos))
-		if err := (&l).ReadFrom(buf); err != nil {
+		if err := (&l).ReadFrom(buf, -1); err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
 		valOffs = append(valOffs, int(buf.Pos))

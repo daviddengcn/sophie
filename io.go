@@ -28,7 +28,10 @@ type WriteCloser interface {
 }
 
 type SophieReader interface {
-	ReadFrom(r Reader) error
+	/**
+	 * @param len the number of bytes to read. -1 means unknown
+	 */
+	ReadFrom(r Reader, l int) error
 }
 type SophieWriter interface {
 	WriteTo(w Writer) error
@@ -48,7 +51,11 @@ func (i Int32) WriteTo(w Writer) error {
 	return err
 }
 
-func (i *Int32) ReadFrom(r Reader) error {
+func (i *Int32) ReadFrom(r Reader, l int) error {
+	if l != -1 && l != 4 {
+		return ErrBadFormat
+	}
+	
 	var arr [4]byte
 	n, err := r.Read(arr[:])
 	if n < 4 {
@@ -81,7 +88,7 @@ func (i VInt) WriteTo(w Writer) error {
 	return err
 }
 
-func (i *VInt) ReadFrom(r Reader) error {
+func (i *VInt) ReadFrom(r Reader, l int) error {
 	var v VInt
 	b, err := r.ReadByte()
 	if err != nil {
@@ -107,6 +114,47 @@ func (i *VInt) String() string {
 	return fmt.Sprint(*i)
 }
 
+// *SVInt implements Sophie interface and serializing as a vint
+type RawVInt uint64
+
+func (i RawVInt) WriteTo(w Writer) error {
+	var arr [8]byte
+	n := 0
+	for i != 0 {
+		arr[n] = byte(i&0xff)
+		n++
+		i >>= 8
+	}
+	_, err := w.Write(arr[:n])
+	return err
+}
+
+func (i *RawVInt) ReadFrom(r Reader, l int) error {
+	if l < 0 {
+		return ErrBadFormat
+	}
+	var v RawVInt
+	n := RawVInt(0)
+	for ; l > 0; l -- {
+		b, err := r.ReadByte()
+		if err != nil {
+			return err
+		}
+		v |= (RawVInt(b) & 0xff) << n
+		n += 8
+	}
+	*i = v
+	return nil
+}
+
+func (i *RawVInt) Val() int64 {
+	return int64(*i)
+}
+
+func (i *RawVInt) String() string {
+	return fmt.Sprint(*i)
+}
+
 type ByteArray []byte
 
 func (ba ByteArray) WriteTo(w Writer) error {
@@ -117,33 +165,56 @@ func (ba ByteArray) WriteTo(w Writer) error {
 	return err
 }
 
-func (ba *ByteArray) ReadFrom(r Reader) error {
-	var l VInt
-	if err := l.ReadFrom(r); err != nil {
+func (ba *ByteArray) ReadFrom(r Reader, l int) error {
+	var sz VInt
+	if err := sz.ReadFrom(r, -1); err != nil {
 		return err
 	}
-	if VInt(cap(*ba)) < l {
-		*ba = make(ByteArray, l)
+	if VInt(cap(*ba)) < sz {
+		*ba = make(ByteArray, sz)
 	}
 
-	if VInt(len(*ba)) != l {
-		*ba = (*ba)[:l]
+	if VInt(len(*ba)) != sz {
+		*ba = (*ba)[:sz]
 	}
 
 	_, err := r.Read(*ba)
 	return err
 }
 
-// *SString implements Sophie interface
+type RawByteArray []byte
+
+func (ba RawByteArray) WriteTo(w Writer) error {
+	_, err := w.Write(ba)
+	return err
+}
+
+func (ba *RawByteArray) ReadFrom(r Reader, sz int) error {
+	if sz < 0 {
+		return ErrBadFormat
+	}
+	if cap(*ba) < sz {
+		*ba = make(RawByteArray, sz)
+	}
+
+	if len(*ba) != sz {
+		*ba = (*ba)[:sz]
+	}
+
+	_, err := r.Read(*ba)
+	return err
+}
+
+// *String implements Sophie interface
 type String string
 
 func (s String) WriteTo(w Writer) error {
 	return ByteArray(s).WriteTo(w)
 }
 
-func (s *String) ReadFrom(r Reader) error {
+func (s *String) ReadFrom(r Reader, l int) error {
 	var ba ByteArray
-	if err := ba.ReadFrom(r); err != nil {
+	if err := ba.ReadFrom(r, l); err != nil {
 		return err
 	}
 
@@ -159,12 +230,40 @@ func (s *String) Val() string {
 	return string(*s)
 }
 
+// *RawString implements Sophie interface
+type RawString string
+
+func (s RawString) WriteTo(w Writer) error {
+	return RawByteArray(s).WriteTo(w)
+}
+
+func (s *RawString) ReadFrom(r Reader, l int) error {
+	var ba RawByteArray
+	if err := ba.ReadFrom(r, l); err != nil {
+		return err
+	}
+
+	*s = RawString(ba)
+
+	return nil
+}
+
+func (s *RawString) String() string {
+	return string(*s)
+}
+func (s *RawString) Val() string {
+	return string(*s)
+}
+
 type Null struct{}
 
 func (Null) WriteTo(w Writer) error {
 	return nil
 }
 
-func (Null) ReadFrom(r Reader) error {
+func (Null) ReadFrom(r Reader, l int) error {
+	if l != -1 && l != 0 {
+		return ErrBadFormat
+	}
 	return nil
 }

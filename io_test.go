@@ -19,7 +19,7 @@ func readWrite(t *testing.T, sa, sb Sophier, outBytes int) {
 	}
 
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sb.ReadFrom failed: %%v",
-		sa), sb.ReadFrom(&buf))
+		sa), sb.ReadFrom(&buf, len(buf)))
 }
 
 func TestBasicSophieTypes(t *testing.T) {
@@ -32,7 +32,33 @@ func TestBasicSophieTypes(t *testing.T) {
 	i32a = -1234
 	readWrite(t, &i32a, &i32b, 4)
 	assert.Equals(t, "i32b", i32b, i32a)
-	// Test of VInt
+
+	// Test of String, and ByteArray
+	var sa, sb String
+	sa = ""
+	readWrite(t, &sa, &sb, 1)
+	assert.Equals(t, "sb", sb, sa)
+
+	sa = "Hello"
+	readWrite(t, &sa, &sb, 6)
+	assert.Equals(t, "sb", sb, sa)
+
+	sa = ""
+	for len(sa) < 127 {
+		sa += "a"
+	}
+	readWrite(t, &sa, &sb, 128)
+	assert.Equals(t, "sb", sb, sa)
+	sa = ""
+
+	for len(sa) < 128 {
+		sa += "a"
+	}
+	readWrite(t, &sa, &sb, 130)
+	assert.Equals(t, "sb", sb, sa)
+}
+
+func TestVInt(t *testing.T) {
 	var via, vib VInt
 	via = 0
 	readWrite(t, &via, &vib, 1)
@@ -67,27 +93,43 @@ func TestBasicSophieTypes(t *testing.T) {
 	via = 0X800000005
 	readWrite(t, &via, &vib, 6)
 	assert.Equals(t, "vib", vib, via)
-	// Test of String, and ByteArray
-	var sa, sb String
-	sa = ""
-	readWrite(t, &sa, &sb, 1)
-	assert.Equals(t, "sb", sb, sa)
+}
 
-	sa = "Hello"
-	readWrite(t, &sa, &sb, 6)
-	assert.Equals(t, "sb", sb, sa)
-
-	sa = ""
-	for len(sa) < 127 {
-		sa += "a"
-	}
-	readWrite(t, &sa, &sb, 128)
-	assert.Equals(t, "sb", sb, sa)
-	sa = ""
-
-	for len(sa) < 128 {
-		sa += "a"
-	}
-	readWrite(t, &sa, &sb, 130)
-	assert.Equals(t, "sb", sb, sa)
+func TestRawVInt(t *testing.T) {
+	var rvia, rvib RawVInt
+	rvia = 0
+	readWrite(t, &rvia, &rvib, 0)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 1
+	readWrite(t, &rvia, &rvib, 1)
+	rvia = 0xFF
+	readWrite(t, &rvia, &rvib, 1)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0x100
+	readWrite(t, &rvia, &rvib, 2)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0XFFFE
+	readWrite(t, &rvia, &rvib, 2)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0X10001
+	readWrite(t, &rvia, &rvib, 3)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0XFFFFFF
+	readWrite(t, &rvia, &rvib, 3)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0X1000000
+	readWrite(t, &rvia, &rvib, 4)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0XFFFFFFFF
+	readWrite(t, &rvia, &rvib, 4)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0X100000000
+	readWrite(t, &rvia, &rvib, 5)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0XFFFFFFFFFF
+	readWrite(t, &rvia, &rvib, 5)
+	assert.Equals(t, "rvib", rvib, rvia)
+	rvia = 0X10000000000
+	readWrite(t, &rvia, &rvib, 6)
+	assert.Equals(t, "rvib", rvib, rvia)
 }

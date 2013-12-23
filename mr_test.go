@@ -20,7 +20,7 @@ func (iter *linesIter) Next(key, val SophieReader) error {
 	if iter.pos >= len(iter.lines) {
 		return EOF
 	}
-	*(key.(*String)) = String(iter.lines[iter.pos])
+	*(key.(*RawString)) = RawString(iter.lines[iter.pos])
 	iter.pos++
 	return nil
 }
@@ -57,7 +57,7 @@ func (lcm *LinesCounterMapper) Collect(key, val SophieWriter) error {
 }
 
 func (lcm *LinesCounterMapper) NewKey() Sophier {
-	return new(String)
+	return new(RawString)
 }
 func (lcm *LinesCounterMapper) NewVal() Sophier {
 	return Null{}
@@ -76,6 +76,16 @@ accepted and all subsequent writes will return the error.
 After all data has been written, the client should call the 
 Flush method to guarantee all data has been forwarded to the
 underlying io.Writer.
+At least eight people are dead after a bizarre mix of weather across the 
+country spawned tornadoes, ice storms and record-setting warmth this weekend.
+Four of the deaths involved two vehicle accidents in Kentucky. Three people 
+drowned in the Rolling Fork River near New Hope when a car drove into the water.
+Two people escaped but were hospitalized with hypothermia.
+"Water was out of the banks, considerably up onto the roadway area. They ran 
+their vehicle into the water. Two of the folks were exiting the vehicle as the 
+swift water started pushing the vehicle downstream. The other three occupants 
+of the vehicle were unable to exit," said Joe Prewitt, with Nelson County 
+Emergency Management.
 111`
 )
 
@@ -99,7 +109,7 @@ type WordCountMapper struct {
 }
 
 func (wcm *WordCountMapper) NewKey() Sophier {
-	return new(String)
+	return new(RawString)
 }
 func (wcm *WordCountMapper) NewVal() Sophier {
 	return Null{}
@@ -107,7 +117,7 @@ func (wcm *WordCountMapper) NewVal() Sophier {
 
 func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 	//fmt.Printf("WordCountMapper (%v, %v) ...\n", key, val)
-	line := *(key.(*String))
+	line := *(key.(*RawString))
 	words := strings.Split(string(line), " ")
 	for _, word := range words {
 		if len(word) == 0 {
@@ -115,8 +125,8 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 		}
 		word = strings.ToLower(word)
 		//fmt.Printf("CollectTo %v\n", word)
-//		c.CollectTo(int(word[0]), String(word), VInt(1))
-		c.CollectTo(0, String(word), VInt(1))
+		c.CollectTo(int(word[0]), RawString(word), RawVInt(1))
+//		c.CollectTo(0, RawString(word), RawVInt(1))
 	}
 	return nil
 }
@@ -129,17 +139,17 @@ type WordCountReducer struct {
 }
 
 func (wc *WordCountReducer) NewKey() Sophier {
-	return new(String)
+	return new(RawString)
 }
 
 func (wc *WordCountReducer) NewVal() Sophier {
-	return new(VInt)
+	return new(RawVInt)
 }
 
 func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 	c Collector) error {
-	fmt.Printf("Reducing %v\n", key)
-	var count VInt
+	// fmt.Printf("Reducing %v\n", key)
+	var count RawVInt
 	for {
 		val, err := nextVal()
 		if err == EOF {
@@ -149,7 +159,7 @@ func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 			return err
 		}
 		// fmt.Println("WordCountReducer.Reduce", key, val)
-		count += *(val.(*VInt))
+		count += *(val.(*RawVInt))
 	}
 	
 	// fmt.Println("WordCountReducer.Reduce c.Collect", key, count)
@@ -161,7 +171,7 @@ func (wc *WordCountReducer) Collect(key, val SophieWriter) error {
 	wc.Lock()
 	defer wc.Unlock()
 
-	wc.counts[key.(*String).Val()] = int(val.(VInt))
+	wc.counts[key.(*RawString).Val()] = int(val.(RawVInt))
 	//	fmt.Printf("Result %v: %v\n", key, val)
 	return nil
 }
@@ -244,7 +254,7 @@ func TestMRFromFile(t *testing.T) {
 			assert.NoErrorf(t, "NewKVWriter: %v", err)
 		}
 
-		assert.NoErrorf(t, "inF.Collect", inF.Collect(String(line), Null{}))
+		assert.NoErrorf(t, "inF.Collect", inF.Collect(RawString(line), Null{}))
 	}
 	if inF != nil {
 		assert.NoErrorf(t, "inF.Close: %v", inF.Close())
@@ -278,8 +288,8 @@ func TestMRFromFile(t *testing.T) {
 	resIn := KVDirInput(mrout)
 	n, err := resIn.PartCount()
 	assert.NoErrorf(t, "resIn.PartCount(): %v", err)
-	var word String
-	var cnt VInt
+	var word RawString
+	var cnt RawVInt
 	actCnts := make(map[string]int)
 	for i := 0; i < n; i++ {
 		iter, err := resIn.Iterator(i)
