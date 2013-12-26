@@ -95,7 +95,8 @@ func TestMapOnly(t *testing.T) {
 	var mapper LinesCounterMapper
 
 	job := MapOnlyJob{
-		Mapper: &mapper,
+		MapFactory: SingleOnlyMapperFactory(&mapper),
+		
 		Source: lines,
 		Dest:   &mapper,
 	}

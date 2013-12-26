@@ -38,3 +38,7 @@ func (out KVDirOutput) Collector(index int) (CollectCloser, error) {
 	}
 	return NewKVWriter(FsPath(out).Join(fmt.Sprintf("part-%05d", index)))
 }
+
+func (out KVDirOutput) Clean() error {
+	return FsPath(out).Remove()
+}

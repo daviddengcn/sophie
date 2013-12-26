@@ -3,6 +3,7 @@ package sophie
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/daviddengcn/go-assert"
 	"github.com/daviddengcn/go-villa"
@@ -33,6 +34,9 @@ func TestBasicSophieTypes(t *testing.T) {
 	readWrite(t, &i32a, &i32b, 4)
 	assert.Equals(t, "i32b", i32b, i32a)
 
+}
+
+func TestString(t *testing.T) {
 	// Test of String, and ByteArray
 	var sa, sb String
 	sa = ""
@@ -56,6 +60,23 @@ func TestBasicSophieTypes(t *testing.T) {
 	}
 	readWrite(t, &sa, &sb, 130)
 	assert.Equals(t, "sb", sb, sa)
+	
+	sa = "String"
+	var buf villa.ByteSlice
+	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v",
+		sa), sa.WriteTo(&buf))
+
+	sb, err := ReadString(&buf)
+	assert.NoErrorf(t, "ReadString failed: %v", err)
+	assert.Equals(t, "sb", sb, sa)
+	
+	buf = nil
+	
+	sla := []string{"abc", "def"}
+	assert.NoErrorf(t, "WriteStringSlice failed: %v", WriteStringSlice(&buf, sla))
+	var slb []string
+	assert.NoErrorf(t, "ReadStringSlice failed: %v", ReadStringSlice(&buf, &slb))
+	assert.StringEquals(t, "slb", slb, sla)
 }
 
 func TestVInt(t *testing.T) {
@@ -132,4 +153,11 @@ func TestRawVInt(t *testing.T) {
 	rvia = 0X10000000000
 	readWrite(t, &rvia, &rvib, 6)
 	assert.Equals(t, "rvib", rvib, rvia)
+}
+
+func TestTime(t *testing.T) {
+	var ta, tb Time
+	ta = Time(time.Now())
+	readWrite(t, &ta, &tb, -1)
+	assert.Equals(t, "tb", tb, ta)
 }

@@ -3,6 +3,7 @@ package sophie
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
 type Reader interface {
@@ -74,7 +75,7 @@ func (i *Int32) Val() int32 {
 }
 
 // *SVInt implements Sophie interface and serializing as a vint
-type VInt uint64
+type VInt int
 
 func (i VInt) WriteTo(w Writer) error {
 	var arr [10]byte
@@ -97,7 +98,7 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 		return err
 	}
 	v = VInt(b & 0x7f)
-	for n := VInt(7); b&0x80 != 0; n += 7 {
+	for n := uint(7); b&0x80 != 0; n += 7 {
 		b, err = r.ReadByte()
 		if err != nil {
 			return err
@@ -108,8 +109,8 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 	return nil
 }
 
-func (i *VInt) Val() int64 {
-	return int64(*i)
+func (i *VInt) Val() int {
+	return int(*i)
 }
 
 func (i *VInt) String() string {
@@ -117,7 +118,7 @@ func (i *VInt) String() string {
 }
 
 // *SVInt implements Sophie interface and serializing as a vint
-type RawVInt uint64
+type RawVInt int
 
 func (i RawVInt) WriteTo(w Writer) error {
 	var arr [8]byte
@@ -136,7 +137,7 @@ func (i *RawVInt) ReadFrom(r Reader, l int) error {
 		return ErrBadFormat
 	}
 	var v RawVInt
-	n := RawVInt(0)
+	n := uint(0)
 	for ; l > 0; l-- {
 		b, err := r.ReadByte()
 		if err != nil {
@@ -149,8 +150,8 @@ func (i *RawVInt) ReadFrom(r Reader, l int) error {
 	return nil
 }
 
-func (i *RawVInt) Val() int64 {
-	return int64(*i)
+func (i *RawVInt) Val() int {
+	return int(*i)
 }
 
 func (i *RawVInt) String() string {
@@ -232,6 +233,42 @@ func (s *String) Val() string {
 	return string(*s)
 }
 
+func ReadString(r Reader) (s String, err error) {
+	err = s.ReadFrom(r, UNKNOWN_LEN)
+	return
+}
+
+func WriteStringSlice(w Writer, sl []string) error {
+	if err := VInt(len(sl)).WriteTo(w); err != nil {
+		return err
+	}
+	for _, s := range sl {
+		if err := String(s).WriteTo(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ReadStringSlice(r Reader, sl *[]string) (err error) {
+	var l VInt
+	if err := l.ReadFrom(r, -1); err != nil {
+		return err
+	}
+	if cap(*sl) < int(l) {
+		*sl = make([]string, l)
+	} else {
+		*sl = (*sl)[:l]
+	}
+	for i := range *sl {
+		if err := (*String)(&(*sl)[i]).ReadFrom(r, -1); err != nil {
+			return err
+		}
+	}
+	
+	return nil
+}
+
 // *RawString implements Sophie interface
 type RawString string
 
@@ -270,4 +307,22 @@ func (Null) ReadFrom(r Reader, l int) error {
 		return ErrBadFormat
 	}
 	return nil
+}
+
+type Time time.Time
+
+func (t Time) WriteTo(w Writer) error {
+	bytes, err := time.Time(t).MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return ByteSlice(bytes).WriteTo(w)
+}
+
+func (t *Time) ReadFrom(r Reader, l int) error {
+	var bytes ByteSlice
+	if err := (&bytes).ReadFrom(r, l); err != nil {
+		return err
+	}
+	return ((*time.Time)(t)).UnmarshalBinary(bytes)
 }

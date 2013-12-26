@@ -8,13 +8,10 @@ import (
 
 var (
 	EOF = errors.New("EOF")
+	// end of map, an error returned by a Mapper/OnlyMapper.Map indicating a stop
+	// of continuing mapping
+	EOM = errors.New("EOM")
 )
-
-type EmptyClose struct{}
-
-func (EmptyClose) Close() error {
-	return nil
-}
 
 type Iterator interface {
 	Next(key, val SophieReader) error
@@ -45,10 +42,10 @@ type OnlyMapper interface {
 	MapEnd(c Collector) error
 }
 
-type EmptyOnlyMapper struct{}
-
-func (EmptyOnlyMapper) MapEnd(c Collector) error {
-	return nil
+// The factory interface for generating OnlyMappers
+type OnlyMapperFactory interface {
+	// New an OnlyMapper for a particular partition
+	NewMapper(part int) OnlyMapper
 }
 
 type Input interface {
@@ -61,44 +58,71 @@ type Output interface {
 }
 
 type MapOnlyJob struct {
-	// TODO change to OnlyMapperFactory
-	Mapper OnlyMapper
+	// The factory for OnlyMappers
+	MapFactory OnlyMapperFactory
 
 	Source Input
 	Dest   Output
 }
 
 func (job *MapOnlyJob) Run() error {
+	if job.MapFactory == nil {
+		return errors.New("MapOnlyJob: MapFactory undefined!")
+	}
+	if job.Source == nil {
+		return errors.New("MapOnlyJob: Source undefined!")
+	}
+	if job.Dest == nil {
+		return errors.New("MapOnlyJob: Dest undefined!")
+	}
+	
 	partCount, err := job.Source.PartCount()
 	if err != nil {
 		return err
 	}
 
-	mapper := job.Mapper
-	key, val := mapper.NewKey(), mapper.NewVal()
-
-	for i := 0; i < partCount; i++ {
-		c, err := job.Dest.Collector(i)
-		if err != nil {
-			return err
-		}
-		iter, err := job.Source.Iterator(i)
-		if err != nil {
-			return err
-		}
-		defer iter.Close()
-
-		for {
-			if err := iter.Next(key, val); err != nil {
-				if err != EOF {
+	ends := make([]chan error, 0, partCount)
+	for part := 0; part < partCount; part++ {
+		end := make(chan error, 1)
+		ends = append(ends, end)
+		go func(part int, end chan error) {
+			end <- func() error {
+				mapper := job.MapFactory.NewMapper(part)
+				key, val := mapper.NewKey(), mapper.NewVal()
+				c, err := job.Dest.Collector(part)
+				if err != nil {
 					return err
 				}
-				break
-			}
-
-			if err := mapper.Map(key, val, c); err != nil {
-				return err
-			}
+				iter, err := job.Source.Iterator(part)
+				if err != nil {
+					return err
+				}
+				defer iter.Close()
+		
+				for {
+					if err := iter.Next(key, val); err != nil {
+						if err != EOF {
+							return err
+						}
+						break
+					}
+		
+					if err := mapper.Map(key, val, c); err != nil {
+						if err == EOM {
+							break
+						}
+						return err
+					}
+				}
+				
+				return mapper.MapEnd(c)
+			}()
+		}(part, end)
+	}
+	
+	for _, end := range ends {
+		if err := <- end; err != nil {
+			return err
 		}
 	}
 
@@ -120,18 +144,6 @@ func (EmptyMapper) MapEnd(c PartCollector) error {
 
 type MapperFactory interface {
 	NewMapper(part int) Mapper
-}
-
-type singleMapperFactory struct {
-	Mapper
-}
-
-func (self singleMapperFactory) NewMapper(part int) Mapper {
-	return self.Mapper
-}
-
-func SingleMapperFactory(mapper Mapper) MapperFactory {
-	return singleMapperFactory{mapper}
 }
 
 type SophierIterator func() (Sophier, error)
@@ -195,17 +207,17 @@ func (job *MrJob) Run() error {
 		}
 	}
 
-	ends := make([]chan error, partCount)
+	ends := make([]chan error, 0, partCount)
 
-	for i := 0; i < partCount; i++ {
-		ends[i] = make(chan error, 1)
-		c, err := sorters.NewPartCollector(i)
-		if err != nil {
-			// FIXME
-			return err
-		}
-		go func(part int, end chan error, c PartCollector) {
+	for part := 0; part < partCount; part++ {
+		end := make(chan error, 1)
+		ends = append(ends, end)
+		go func(part int, end chan error) {
 			end <- func() error {
+				c, err := sorters.NewPartCollector(part)
+				if err != nil {
+					return err
+				}
 				mapper := job.MapFactory.NewMapper(part)
 				key, val := mapper.NewKey(), mapper.NewVal()
 				iter, err := job.Source.Iterator(part)
@@ -226,11 +238,9 @@ func (job *MrJob) Run() error {
 						return err
 					}
 				}
-				mapper.MapEnd(c)
-				fmt.Printf("Iterator %d finished\n", part)
-				return nil
+				return mapper.MapEnd(c)
 			}()
-		}(i, ends[i], c)
+		}(part, end)
 	}
 
 	for _, end := range ends {
