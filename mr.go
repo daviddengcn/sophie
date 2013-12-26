@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 )
 
 var (
@@ -35,10 +36,17 @@ type PartCollector interface {
 	CollectTo(part int, key, val SophieWriter) error
 }
 
+// OnlyMapper is an interface defining the map actions for MapOnlyJob
 type OnlyMapper interface {
+	// NewKey returns a new instance of key
 	NewKey() Sophier
+	// NewVal returns a new instance of value
 	NewVal() Sophier
+	// Make a map action for a key/val pair, collecting results to c
+	// If sophie.EOM is returned the mapping is stopped (as sucess).
+	// If other non-nil error is returned, the job is aborted as failure.
 	Map(key, val SophieWriter, c Collector) error
+	// Make a map action at final stage, collecting results to c
 	MapEnd(c Collector) error
 }
 
@@ -120,8 +128,9 @@ func (job *MapOnlyJob) Run() error {
 		}(part, end)
 	}
 	
-	for _, end := range ends {
+	for part, end := range ends {
 		if err := <- end; err != nil {
+			log.Printf("Error returned for part %d: %v", part, err)
 			return err
 		}
 	}

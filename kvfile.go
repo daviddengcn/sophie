@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/daviddengcn/go-villa"
 )
@@ -111,6 +112,7 @@ func (kvr *KVReader) Close() error {
 	return kvr.reader.Close()
 }
 
+// Next fetches next key/val pair
 func (kvr *KVReader) Next(key, val SophieReader) error {
 	var l VInt
 	if err := (&l).ReadFrom(kvr.reader, -1); err != nil {
@@ -122,16 +124,20 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 	posEnd := kvr.reader.Pos + int64(l)
 	if err := key.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
+			log.Printf("Error format reading key")
 			return ErrBadFormat
 		}
 		return err
 	}
 	if kvr.reader.Pos != posEnd {
+		log.Printf("PosEnd wrong after reading key(len = %d) %v: exp %d, act %d",
+			l, key, posEnd, kvr.reader.Pos)
 		return ErrBadFormat
 	}
 
 	if err := (&l).ReadFrom(kvr.reader, -1); err != nil {
 		if err == io.EOF {
+			log.Printf("Error format of val length for key %v", key)
 			return ErrBadFormat
 		}
 		return err
@@ -139,11 +145,14 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 	posEnd = kvr.reader.Pos + int64(l)
 	if err := val.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
+			log.Printf("Error format of reading val for key %v", key)
 			return ErrBadFormat
 		}
 		return err
 	}
 	if kvr.reader.Pos != posEnd {
+		log.Printf("PosEnd wrong after reading key %v, value %v: exp %d, act %d",
+			key, val, posEnd, kvr.reader.Pos)
 		return ErrBadFormat
 	}
 	return nil

@@ -3,6 +3,7 @@ package sophie
 import (
 	"fmt"
 	"io"
+	"log"
 	"time"
 )
 
@@ -40,6 +41,7 @@ type SophieWriter interface {
 	WriteTo(w Writer) error
 }
 
+// Sophier is a basic data structure for serialization
 type Sophier interface {
 	SophieReader
 	SophieWriter
@@ -60,8 +62,7 @@ func (i *Int32) ReadFrom(r Reader, l int) error {
 	}
 
 	var arr [4]byte
-	n, err := r.Read(arr[:])
-	if n < 4 {
+	if _, err := io.ReadFull(r, arr[:]); err != nil {
 		return err
 	}
 
@@ -98,12 +99,11 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 		return err
 	}
 	v = VInt(b & 0x7f)
-	for n := uint(7); b&0x80 != 0; n += 7 {
-		b, err = r.ReadByte()
-		if err != nil {
+	for n := uint(7); b & 0x80 != 0; n += 7 {
+		if b, err = r.ReadByte(); err != nil {
 			return err
 		}
-		v |= VInt(b&0x7f) << n
+		v |= VInt(b & 0x7f) << n
 	}
 	*i = v
 	return nil
@@ -181,7 +181,7 @@ func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 		*ba = (*ba)[:sz]
 	}
 
-	_, err := r.Read(*ba)
+	_, err := io.ReadFull(r, *ba)
 	return err
 }
 
@@ -194,6 +194,7 @@ func (ba RawByteSlice) WriteTo(w Writer) error {
 
 func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if sz < 0 {
+		log.Printf("RawByteSlice expecting a size by get %d", sz)
 		return ErrBadFormat
 	}
 	if cap(*ba) < sz {
@@ -204,7 +205,10 @@ func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 		*ba = (*ba)[:sz]
 	}
 
-	_, err := r.Read(*ba)
+	n, err := io.ReadFull(r, *ba)
+	if n != sz {
+		log.Printf("RawByteSlice.ReadFrom: exp %d bytes act %d: %v", sz, n, err)
+	}
 	return err
 }
 
