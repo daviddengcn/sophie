@@ -62,9 +62,9 @@ func (lcm *LinesCounterMapper) NewKey() Sophier {
 func (lcm *LinesCounterMapper) NewVal() Sophier {
 	return Null{}
 }
-func (lcm *LinesCounterMapper) Map(key, val SophieWriter, c Collector) error {
+func (lcm *LinesCounterMapper) Map(key, val SophieWriter, c []Collector) error {
 	//fmt.Printf("Mapping (%v, %v) ...\n", key, val)
-	c.Collect(Int32(1), Null{})
+	c[0].Collect(Int32(1), Null{})
 	return nil
 }
 
@@ -97,8 +97,8 @@ func TestMapOnly(t *testing.T) {
 	job := MapOnlyJob{
 		MapFactory: SingleOnlyMapperFactory(&mapper),
 		
-		Source: lines,
-		Dest:   &mapper,
+		Source: []Input{lines},
+		Dest:   []Output{&mapper},
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
@@ -213,7 +213,7 @@ func TestMapReduce(t *testing.T) {
 	job := MrJob{
 		MapFactory: SingleMapperFactory(&mapper),
 		RedFactory: SingleReducerFactory(&reducer),
-		Source:     lines,
+		Source:     []Input{lines},
 		Dest:       &reducer,
 	}
 
@@ -271,7 +271,7 @@ func TestMRFromFile(t *testing.T) {
 	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
-		Source:     KVDirInput(mrin),
+		Source:     []Input{KVDirInput(mrin)},
 		MapFactory: SingleMapperFactory(&mapper),
 
 		RedFactory: SingleReducerFactory(&reducer),

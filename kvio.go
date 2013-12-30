@@ -18,6 +18,7 @@ func (in KVDirInput) PartCount() (int, error) {
 	return len(infos), nil
 }
 
+// Input.Iterator
 func (in KVDirInput) Iterator(index int) (IterateCloser, error) {
 	infos, err := in.Fs.ReadDir(in.Path)
 	if err != nil {
