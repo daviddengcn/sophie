@@ -62,7 +62,7 @@ func (ms *MemSorter) Swap(i, j int) {
 	ms.ValEnds.Swap(i, j)
 }
 
-func (ms *MemSorter) Iterate(c Collector, r Reducer) error {
+func (ms *MemSorter) Iterate(c []Collector, r Reducer) error {
 	if len(ms.KeyOffs) == 0 {
 		// nothing to iterate
 		return nil
@@ -211,7 +211,7 @@ func sophieCmp(a, b Sophier) int {
 	return bytesCmp(bufA, bufB)
 }
 
-func (mo *mapOut) Iterate(c Collector, r Reducer) error {
+func (mo *mapOut) Iterate(c []Collector, r Reducer) error {
 	key, val := r.NewKey(), r.NewVal()
 	err := mo.reader.Next(key, val)
 	if err != nil {

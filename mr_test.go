@@ -148,7 +148,7 @@ func (wc *WordCountReducer) NewVal() Sophier {
 }
 
 func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
-	c Collector) error {
+	c []Collector) error {
 	// fmt.Printf("Reducing %v\n", key)
 	var count RawVInt
 	for {
@@ -165,7 +165,7 @@ func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
 
 	// fmt.Println("WordCountReducer.Reduce c.Collect", key, count)
 
-	return c.Collect(key, count)
+	return c[0].Collect(key, count)
 }
 
 func (wc *WordCountReducer) Collect(key, val SophieWriter) error {
@@ -214,7 +214,7 @@ func TestMapReduce(t *testing.T) {
 		MapFactory: SingleMapperFactory(&mapper),
 		RedFactory: SingleReducerFactory(&reducer),
 		Source:     []Input{lines},
-		Dest:       &reducer,
+		Dest:       []Output{&reducer},
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
@@ -275,7 +275,7 @@ func TestMRFromFile(t *testing.T) {
 		MapFactory: SingleMapperFactory(&mapper),
 
 		RedFactory: SingleReducerFactory(&reducer),
-		Dest:       KVDirOutput(mrout),
+		Dest:       []Output{KVDirOutput(mrout)},
 
 		Sorter: NewFileSorter(mrtmp),
 	}

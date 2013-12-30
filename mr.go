@@ -177,29 +177,23 @@ type SophierIterator func() (Sophier, error)
 type Reducer interface {
 	NewKey() Sophier
 	NewVal() Sophier
-	Reduce(key SophieWriter, nextVal SophierIterator, c Collector) error
-	ReduceEnd(c Collector) error
-}
-
-type EmptyReducer struct{}
-
-func (EmptyReducer) ReduceEnd(c Collector) error {
-	return nil
+	// to get all values:
+	//   for {
+	//	 	val, err := nextVal()
+	//   	if err == sophie.EOF {
+	//   		break;
+	//   	}
+	//      if err != nil {
+	//   		return err;
+	//   	}
+	//      ...
+	//   }
+	Reduce(key SophieWriter, nextVal SophierIterator, c []Collector) error
+	ReduceEnd(c []Collector) error
 }
 
 type ReducerFactory interface {
 	NewReducer(part int) Reducer
-}
-
-type singleReducerFactory struct {
-	Reducer
-}
-
-func (self singleReducerFactory) NewReducer(part int) Reducer {
-	return self.Reducer
-}
-func SingleReducerFactory(reducer Reducer) ReducerFactory {
-	return singleReducerFactory{reducer}
 }
 
 type MrJob struct {
@@ -209,18 +203,27 @@ type MrJob struct {
 	Sorter Sorter
 
 	Source []Input
-	Dest   Output
+	Dest   []Output
 }
 
 type ReduceIterator interface {
-	Iterate(c Collector, r Reducer) error
+	Iterate(c []Collector, r Reducer) error
 }
 
 func (job *MrJob) Run() error {
+	if job.MapFactory == nil {
+		return errors.New("MrJob: MapFactory undefined!")
+	}
+	if job.RedFactory == nil {
+		return errors.New("MrJob: RedFactory undefined!")
+	}
+	if job.Source == nil {
+		return errors.New("MrJob: Source undefined!")
+	}
+	
 	/*
 	 * Map
 	 */
-
 	sorters := job.Sorter
 	if sorters == nil {
 		fmt.Println("Using memStorters...")
@@ -300,13 +303,17 @@ func (job *MrJob) Run() error {
 				if err != nil {
 					return err
 				}
-				c, err := job.Dest.Collector(part)
-				if err != nil {
-					return err
+				cs := make([]Collector, 0, len(job.Dest))
+				for _, dst := range job.Dest {
+					c, err := dst.Collector(part)
+					if err != nil {
+						return err
+					}
+					defer c.Close()
+					cs = append(cs, c)
 				}
-				defer c.Close()
 				reducer := job.RedFactory.NewReducer(part)
-				return it.Iterate(c, reducer)
+				return it.Iterate(cs, reducer)
 			}()
 		}(part, end)
 	}
