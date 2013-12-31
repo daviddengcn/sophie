@@ -226,7 +226,7 @@ func (job *MrJob) Run() error {
 	 */
 	sorters := job.Sorter
 	if sorters == nil {
-		fmt.Println("Using memStorters...")
+		fmt.Println("Using memSorters...")
 		sorters = &MemSorters{
 			sorters: make(map[int]*MemSorter),
 		}
@@ -290,7 +290,7 @@ func (job *MrJob) Run() error {
 	if err := sorters.ClosePartCollectors(); err != nil {
 		fmt.Printf("sorters.ClosePartCollectors(): %v", err)
 	}
-	fmt.Printf("Map ends, begin to reduce\n")
+	log.Printf("Map ends, begin to reduce")
 
 	var ends []chan error
 	parts := sorters.ReduceParts()

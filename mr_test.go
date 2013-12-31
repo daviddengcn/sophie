@@ -1,6 +1,7 @@
 package sophie
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -311,4 +312,98 @@ func TestMRFromFile(t *testing.T) {
 
 	assertMapEquals(t, actCnts, expCnts)
 	fmt.Println("TestMRFromFile ends")
+}
+
+
+// a mapper that CollectTo 0 a (RawString("part"), VInt(self)) pair at MapEnd.
+type partMapper int
+
+func (partMapper) NewKey() Sophier {
+	return NULL
+}
+
+func (partMapper) NewVal() Sophier {
+	return NULL
+}
+
+func (partMapper) Map(key, val SophieWriter, c PartCollector) error {
+	return nil
+}
+
+func (pm partMapper) MapEnd(c PartCollector) error {
+	return c.CollectTo(0, RawString("part"), VInt(pm))
+}
+
+// an Input with specified part number but no entries for each part
+type emptyInput int
+
+func (ei emptyInput) PartCount() (int, error) {
+	return int(ei), nil
+}
+
+func (ei emptyInput) Iterator(index int) (IterateCloser, error) {
+	return ei, nil
+}
+
+func (ei emptyInput) Next(key, val SophieReader) error {
+	return EOF
+}
+
+func (ei emptyInput) Close() error {
+	return nil
+}
+
+// reducer
+type intsetReducer map[VInt]bool
+
+func (intsetReducer) NewKey() Sophier {
+	return new(RawString)
+}
+
+func (intsetReducer) NewVal() Sophier {
+	return new(VInt)
+}
+
+func (st intsetReducer) Reduce(key SophieWriter, nextVal SophierIterator,
+c []Collector) error {
+	keyStr := key.(*RawString).String()
+	if keyStr != "part" {
+		return errors.New(`Key should be "part"`)
+	}
+	for {
+		val, err := nextVal()
+		if err == EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		
+		part := *val.(*VInt)
+		if st[part] {
+			return errors.New(fmt.Sprintf("Duplicated value: %v", part))
+		}
+		st[part] = true
+	}
+	return nil
+}
+
+func (st intsetReducer) ReduceEnd(c []Collector) error {
+	return nil
+}
+
+func TestReduceValues(t *testing.T) {
+	job := MrJob {
+		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+			return partMapper(part)
+		}),
+		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
+			return make(intsetReducer)
+		}),
+		
+		Source: []Input{
+			emptyInput(2),
+		},
+	}
+	assert.NoErrorf(t, "job.Run failed: %v", job.Run())
 }

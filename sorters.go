@@ -63,66 +63,51 @@ func (ms *MemSorter) Swap(i, j int) {
 }
 
 func (ms *MemSorter) Iterate(c []Collector, r Reducer) error {
-	if len(ms.KeyOffs) == 0 {
-		// nothing to iterate
-		return nil
-	}
-
 	key, val := r.NewKey(), r.NewVal()
-	nextKey := r.NewKey()
-	idx := 0
-	keyBuf := ms.Buffer[ms.KeyOffs[idx]:ms.ValOffs[idx]]
-	if err := key.ReadFrom(&keyBuf, len(keyBuf)); err != nil {
-		return err
-	}
-	for idx < len(ms.KeyOffs) {
-		valBuf := ms.Buffer[ms.ValOffs[idx]:ms.ValEnds[idx]]
-		if err := val.ReadFrom(&valBuf, len(valBuf)); err != nil {
+	for idx := 0; idx < len(ms.KeyOffs); {
+		keyBuf := ms.Buffer[ms.KeyOffs[idx]:ms.ValOffs[idx]]
+		if err := key.ReadFrom(&keyBuf, len(keyBuf)); err != nil {
 			return err
 		}
+
+		curVal := idx
 		idx++
 
-		curVal := val
-
-		valIter := func() (s Sophier, err error) {
-			if curVal == nil {
+		valIter := func() (Sophier, error) {
+			if curVal < 0 {
+				// not values for this key, return EOF
 				return nil, EOF
 			}
-			s = curVal
-			curVal = nil
+			// fetch value
+			valBuf := ms.Buffer[ms.ValOffs[curVal]:ms.ValEnds[curVal]]
+			if err := val.ReadFrom(&valBuf, len(valBuf)); err != nil {
+				return nil, err
+			}
+			curVal = -1
 
 			if idx < len(ms.KeyOffs) {
 				keyBuf0 := ms.Buffer[ms.KeyOffs[idx-1]:ms.ValOffs[idx-1]]
 				keyBuf := ms.Buffer[ms.KeyOffs[idx]:ms.ValOffs[idx]]
 				if bytesCmp(keyBuf0, keyBuf) == 0 {
-					// same key
-					valBuf := ms.Buffer[ms.ValOffs[idx]:ms.ValEnds[idx]]
-					if err := val.ReadFrom(&valBuf, len(valBuf)); err != nil {
-						return nil, err
-					}
+					// same key, prepare next value
+					curVal = idx
 					idx++
-
-					curVal = val
-				}
-				if err := nextKey.ReadFrom(&keyBuf, len(keyBuf)); err != nil {
-					return nil, err
 				}
 			}
-			return
+			return val, nil
 		}
 
 		if err := r.Reduce(key, valIter, c); err != nil {
 			return err
 		}
-		for curVal != nil {
+		// iterate to end in case the reducer doesn't
+		for curVal >= 0 {
 			if _, err := valIter(); err != nil {
 				if err != EOF {
 					return err
 				}
 			}
 		}
-		// nextKey stores the key of the current idx
-		key, nextKey = nextKey, key
 	}
 
 	r.ReduceEnd(c)
@@ -178,8 +163,6 @@ func (ms *MemSorters) ReduceParts() []int {
 
 func (ms *MemSorters) NewReduceIterator(part int) (ReduceIterator, error) {
 	sorter := ms.sorters[part]
-	fmt.Printf("Sorting part %d: %d entries\n", part,
-		len(sorter.KeyOffs))
 	sort.Sort(sorter)
 	return sorter, nil
 }
