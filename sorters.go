@@ -313,7 +313,7 @@ func (fs *FileSorter) ReduceParts() []int {
 	for part, _ := range fs.mapOuts {
 		parts = append(parts, part)
 	}
-	fmt.Println("FileSorter ReduceParts", parts)
+	// fmt.Println("FileSorter ReduceParts", parts)
 	return parts
 }
 

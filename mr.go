@@ -226,12 +226,13 @@ func (job *MrJob) Run() error {
 	 */
 	sorters := job.Sorter
 	if sorters == nil {
-		fmt.Println("Using memSorters...")
+		log.Println("Sorter not specified, using MemSorters...")
 		sorters = &MemSorters{
 			sorters: make(map[int]*MemSorter),
 		}
 	}
 
+	log.Println("Start mapping...")
 	endss := make([][]chan error, 0, len(job.Source))
 	totalPart := 0
 	for i := range job.Source {
@@ -324,6 +325,7 @@ func (job *MrJob) Run() error {
 			return err
 		}
 	}
+	log.Println("Reduce ends.")
 
 	return nil
 }

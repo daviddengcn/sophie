@@ -96,7 +96,9 @@ func TestMapOnly(t *testing.T) {
 	var mapper LinesCounterMapper
 
 	job := MapOnlyJob{
-		MapFactory: SingleOnlyMapperFactory(&mapper),
+		MapFactory: OnlyMapperFactoryFunc(func(src, part int) OnlyMapper{
+			return &mapper
+		}),
 		
 		Source: []Input{lines},
 		Dest:   []Output{&mapper},
@@ -212,8 +214,12 @@ func TestMapReduce(t *testing.T) {
 	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
-		MapFactory: SingleMapperFactory(&mapper),
-		RedFactory: SingleReducerFactory(&reducer),
+		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+			return &mapper
+		}),
+		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
+			return &reducer
+		}),
 		Source:     []Input{lines},
 		Dest:       []Output{&reducer},
 	}
@@ -221,8 +227,8 @@ func TestMapReduce(t *testing.T) {
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
 
 	expCnts := statWords(WORDS)
-	fmt.Println(reducer.counts)
-	fmt.Println(expCnts)
+	// fmt.Println(reducer.counts)
+	// fmt.Println(expCnts)
 
 	assertMapEquals(t, reducer.counts, expCnts)
 }
@@ -273,9 +279,13 @@ func TestMRFromFile(t *testing.T) {
 
 	job := MrJob{
 		Source:     []Input{KVDirInput(mrin)},
-		MapFactory: SingleMapperFactory(&mapper),
+		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+			return &mapper
+		}),
 
-		RedFactory: SingleReducerFactory(&reducer),
+		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
+			return &reducer
+		}),
 		Dest:       []Output{KVDirOutput(mrout)},
 
 		Sorter: NewFileSorter(mrtmp),
@@ -307,8 +317,8 @@ func TestMRFromFile(t *testing.T) {
 	}
 
 	expCnts := statWords(WORDS)
-	fmt.Println(expCnts)
-	fmt.Println(actCnts)
+	// fmt.Println(expCnts)
+	// fmt.Println(actCnts)
 
 	assertMapEquals(t, actCnts, expCnts)
 	fmt.Println("TestMRFromFile ends")
