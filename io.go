@@ -99,11 +99,11 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 		return err
 	}
 	v = VInt(b & 0x7f)
-	for n := uint(7); b & 0x80 != 0; n += 7 {
+	for n := uint(7); b&0x80 != 0; n += 7 {
 		if b, err = r.ReadByte(); err != nil {
 			return err
 		}
-		v |= VInt(b & 0x7f) << n
+		v |= VInt(b&0x7f) << n
 	}
 	*i = v
 	return nil
@@ -269,7 +269,7 @@ func ReadStringSlice(r Reader, sl *[]string) (err error) {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 

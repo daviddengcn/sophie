@@ -60,7 +60,7 @@ func TestString(t *testing.T) {
 	}
 	readWrite(t, &sa, &sb, 130)
 	assert.Equals(t, "sb", sb, sa)
-	
+
 	sa = "String"
 	var buf villa.ByteSlice
 	assert.NoErrorf(t, fmt.Sprintf("readWrite(%v): sa.WriteTo failed: %%v",
@@ -69,9 +69,9 @@ func TestString(t *testing.T) {
 	sb, err := ReadString(&buf)
 	assert.NoErrorf(t, "ReadString failed: %v", err)
 	assert.Equals(t, "sb", sb, sa)
-	
+
 	buf = nil
-	
+
 	sla := []string{"abc", "def"}
 	assert.NoErrorf(t, "WriteStringSlice failed: %v", WriteStringSlice(&buf, sla))
 	var slb []string

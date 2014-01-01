@@ -82,7 +82,7 @@ func (job *MapOnlyJob) Run() error {
 	if job.Source == nil {
 		return errors.New("MapOnlyJob: Source undefined!")
 	}
-	
+
 	totalPart := 0
 	endss := make([][]chan error, 0, len(job.Source))
 	for i := range job.Source {
@@ -90,7 +90,7 @@ func (job *MapOnlyJob) Run() error {
 		if err != nil {
 			return err
 		}
-	
+
 		ends := make([]chan error, 0, partCount)
 		for part := 0; part < partCount; part++ {
 			end := make(chan error, 1)
@@ -113,7 +113,7 @@ func (job *MapOnlyJob) Run() error {
 						return err
 					}
 					defer iter.Close()
-			
+
 					for {
 						if err := iter.Next(key, val); err != nil {
 							if err != EOF {
@@ -121,7 +121,7 @@ func (job *MapOnlyJob) Run() error {
 							}
 							break
 						}
-			
+
 						if err := mapper.Map(key, val, cs); err != nil {
 							if err == EOM {
 								break
@@ -129,7 +129,7 @@ func (job *MapOnlyJob) Run() error {
 							return err
 						}
 					}
-					
+
 					return mapper.MapEnd(cs)
 				}()
 			}(i, part, totalPart, end)
@@ -137,11 +137,11 @@ func (job *MapOnlyJob) Run() error {
 		totalPart++
 		endss = append(endss, ends)
 	}
-	
+
 	for _, ends := range endss {
 		for part, end := range ends {
 			log.Printf("Waiting for mapper %d...", part)
-			if err := <- end; err != nil {
+			if err := <-end; err != nil {
 				// FIXME return after all ends
 				log.Printf("Error returned for part %d: %v", part, err)
 				return err
@@ -158,12 +158,6 @@ type Mapper interface {
 	NewVal() Sophier
 	Map(key, val SophieWriter, c PartCollector) error
 	MapEnd(c PartCollector) error
-}
-
-type EmptyMapper struct{}
-
-func (EmptyMapper) MapEnd(c PartCollector) error {
-	return nil
 }
 
 // MapperFactory is a factory of genearting Mapper instances.
@@ -220,7 +214,7 @@ func (job *MrJob) Run() error {
 	if job.Source == nil {
 		return errors.New("MrJob: Source undefined!")
 	}
-	
+
 	/*
 	 * Map
 	 */
@@ -240,7 +234,7 @@ func (job *MrJob) Run() error {
 		if err != nil {
 			return err
 		}
-		
+
 		ends := make([]chan error, 0, partCount)
 		for part := 0; part < partCount; part++ {
 			end := make(chan error, 1)
@@ -258,7 +252,7 @@ func (job *MrJob) Run() error {
 						return err
 					}
 					defer iter.Close()
-	
+
 					for {
 						if err := iter.Next(key, val); err != nil {
 							if err == EOF {
@@ -266,7 +260,7 @@ func (job *MrJob) Run() error {
 							}
 							return err
 						}
-	
+
 						if err := mapper.Map(key, val, c); err != nil {
 							return err
 						}
@@ -275,7 +269,7 @@ func (job *MrJob) Run() error {
 				}()
 			}(i, part, totalPart, end)
 		}
-		
+
 		endss = append(endss, ends)
 		totalPart++
 	}
