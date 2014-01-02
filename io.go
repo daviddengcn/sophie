@@ -158,8 +158,10 @@ func (i *RawVInt) String() string {
 	return fmt.Sprint(*i)
 }
 
+// *ByteSlice implements Sophier interface.
 type ByteSlice []byte
 
+// Sophier.WriteTo
 func (ba ByteSlice) WriteTo(w Writer) error {
 	if err := VInt(len(ba)).WriteTo(w); err != nil {
 		return err
@@ -168,42 +170,35 @@ func (ba ByteSlice) WriteTo(w Writer) error {
 	return err
 }
 
+// Sophier.ReadFrom
 func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 	var sz VInt
 	if err := sz.ReadFrom(r, UNKNOWN_LEN); err != nil {
 		return err
 	}
-	if VInt(cap(*ba)) < sz {
-		*ba = make(ByteSlice, sz)
-	}
-
-	if VInt(len(*ba)) != sz {
-		*ba = (*ba)[:sz]
-	}
+	*ba = make(ByteSlice, sz)
 
 	_, err := io.ReadFull(r, *ba)
 	return err
 }
 
+// *RawByteSlice implements Sophier interface. It encodes byte-slice assuming
+// the length of buffer will be known when decoding.
 type RawByteSlice []byte
 
+// Sophier.WriteTo
 func (ba RawByteSlice) WriteTo(w Writer) error {
 	_, err := w.Write(ba)
 	return err
 }
 
+// Sophier.ReadFrom
 func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if sz < 0 {
 		log.Printf("RawByteSlice expecting a size by get %d", sz)
 		return ErrBadFormat
 	}
-	if cap(*ba) < sz {
-		*ba = make(RawByteSlice, sz)
-	}
-
-	if len(*ba) != sz {
-		*ba = (*ba)[:sz]
-	}
+	*ba = make(RawByteSlice, sz)
 
 	n, err := io.ReadFull(r, *ba)
 	if n != sz {
