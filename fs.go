@@ -104,6 +104,14 @@ type FsPath struct {
 	Path string
 }
 
+// LocalFsPath returns an FsPath with local-file-system and specified path
+func LocalFsPath(path string) FsPath {
+	return FsPath {
+		Fs: LocalFS,
+		Path: path,
+	}
+}
+
 func (fp FsPath) Create() (WriteCloser, error) {
 	return fp.Fs.Create(fp.Path)
 }

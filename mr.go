@@ -133,8 +133,8 @@ func (job *MapOnlyJob) Run() error {
 					return mapper.MapEnd(cs)
 				}()
 			}(i, part, totalPart, end)
+			totalPart++
 		}
-		totalPart++
 		endss = append(endss, ends)
 	}
 
@@ -268,10 +268,10 @@ func (job *MrJob) Run() error {
 					return mapper.MapEnd(c)
 				}()
 			}(i, part, totalPart, end)
+			totalPart++
 		}
 
 		endss = append(endss, ends)
-		totalPart++
 	}
 
 	for _, ends := range endss {

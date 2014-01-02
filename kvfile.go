@@ -28,6 +28,7 @@ func NewKVWriter(fp FsPath) (*KVWriter, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &KVWriter{
 		writer: writer,
 	}, nil
@@ -119,14 +120,16 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 		if err == io.EOF {
 			return EOF
 		}
+		log.Printf("Failed to read key-lenth: %v", err)
 		return err
 	}
 	posEnd := kvr.reader.Pos + int64(l)
 	if err := key.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
-			log.Printf("Error format reading key")
+			log.Printf("Unexpected EOF reading key")
 			return ErrBadFormat
 		}
+		log.Printf("Reading key failed: %v", err)
 		return err
 	}
 	if kvr.reader.Pos != posEnd {
@@ -145,9 +148,10 @@ func (kvr *KVReader) Next(key, val SophieReader) error {
 	posEnd = kvr.reader.Pos + int64(l)
 	if err := val.ReadFrom(kvr.reader, int(l)); err != nil {
 		if err == io.EOF {
-			log.Printf("Error format of reading val for key %v", key)
+			log.Printf("Unexpected EOF reading val for key %v", key)
 			return ErrBadFormat
 		}
+		log.Printf("Reading value for key %v failed: %v", key, err)
 		return err
 	}
 	if kvr.reader.Pos != posEnd {
