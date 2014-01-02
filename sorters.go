@@ -263,6 +263,8 @@ func NewFileSorter(TmpFolder FsPath) *FileSorter {
 	for i := 0; i < 2; i++ {
 		sortToken <- true
 	}
+	TmpFolder.Join("mapOut").Remove()
+	TmpFolder.Join("sorted").Remove()
 	return &FileSorter{
 		TmpFolder: TmpFolder,
 		mapOuts:   make(map[int]*mapOut),
@@ -365,8 +367,6 @@ func (fs *FileSorter) NewReduceIterator(part int) (ReduceIterator, error) {
 		os.ValOffs, os.ValEnds); err != nil {
 		return nil, err
 	}
-
-	// fmt.Println("redIn written to", redIn.Path)
 
 	mo.reader, err = NewKVReader(redIn)
 	if err != nil {
