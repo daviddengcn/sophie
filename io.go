@@ -414,7 +414,7 @@ type Null struct{}
 // NULL is a variable of type Null.
 var NULL Null = Null{}
 
-func ReturnNULL Sophier {
+func ReturnNULL() Sophier {
 	return NULL
 }
 
