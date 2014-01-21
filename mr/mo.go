@@ -1,0 +1,128 @@
+package mr
+
+import (
+	"errors"
+	"log"
+
+	"github.com/daviddengcn/sophie"
+)
+
+var (
+	// end of map, an error returned by a Mapper/OnlyMapper.Map indicating a
+	// stop of continuing mapping
+	EOM = errors.New("EOM")
+)
+
+// OnlyMapper is an interface defining the map actions for MapOnlyJob
+type OnlyMapper interface {
+	// NewKey returns a new instance of key for reading from Source
+	NewKey() sophie.Sophier
+	// NewVal returns a new instance of value for reading from Source
+	NewVal() sophie.Sophier
+	// Make a map action for a key/val pair, collecting results to c.
+	// NOTE the key-value pairs will be reused on next call to Map, so don't
+	// make a deep copy if you want to save the contents.
+	// If sophie.EOM is returned the mapping is stopped (as sucess).
+	// If other non-nil error is returned, the job is aborted as failure.
+	// @param c  the slice of Collectors. Same length as Source.
+	Map(key, val sophie.SophieWriter, c []sophie.Collector) error
+	// Make a map action at final stage, collecting results to c
+	// @param c  the slice of Collectors. Same length as Source.
+	MapEnd(c []sophie.Collector) error
+}
+
+// The factory interface for generating OnlyMappers
+type OnlyMapperFactory interface {
+	// New an OnlyMapper for a particular part and source index
+	NewMapper(src, part int) OnlyMapper
+}
+
+// MapOnlyJob is a job with a mapping step only.
+type MapOnlyJob struct {
+	// The factory for OnlyMappers
+	MapFactory OnlyMapperFactory
+	// The slice of Inputs
+	Source []Input
+	// The slice of Outputs
+	Dest []Output
+}
+
+// Runs the job.
+// If some of the mapper failed, one of the error is returned.
+func (job *MapOnlyJob) Run() error {
+	if job.MapFactory == nil {
+		return errors.New("MapOnlyJob: MapFactory undefined!")
+	}
+	if job.Source == nil {
+		return errors.New("MapOnlyJob: Source undefined!")
+	}
+
+	totalPart := 0
+	endss := make([][]chan error, 0, len(job.Source))
+	for i := range job.Source {
+		partCount, err := job.Source[i].PartCount()
+		if err != nil {
+			return err
+		}
+
+		ends := make([]chan error, 0, partCount)
+		for part := 0; part < partCount; part++ {
+			end := make(chan error, 1)
+			ends = append(ends, end)
+			go func(i, part, totalPart int, end chan error) {
+				end <- func() error {
+					mapper := job.MapFactory.NewMapper(i, part)
+					key, val := mapper.NewKey(), mapper.NewVal()
+					cs := make([]sophie.Collector, 0, len(job.Dest))
+					for _, dst := range job.Dest {
+						c, err := dst.Collector(totalPart)
+						if err != nil {
+							return err
+						}
+						defer c.Close()
+						cs = append(cs, c)
+					}
+					iter, err := job.Source[i].Iterator(part)
+					if err != nil {
+						return err
+					}
+					defer iter.Close()
+
+					for {
+						if err := iter.Next(key, val); err != nil {
+							if err != sophie.EOF {
+								return err
+							}
+							break
+						}
+
+						if err := mapper.Map(key, val, cs); err != nil {
+							if err == EOM {
+								break
+							}
+							return err
+						}
+					}
+
+					return mapper.MapEnd(cs)
+				}()
+			}(i, part, totalPart, end)
+			totalPart++
+		}
+		endss = append(endss, ends)
+	}
+
+	var errReturned error
+	for _, ends := range endss {
+		for part, end := range ends {
+			log.Printf("Waiting for mapper %d...", part)
+			if err := <-end; err != nil {
+				log.Printf("Error returned for part %d: %v", part, err)
+				errReturned = err
+			}
+			log.Printf("No error for mapper %d...", part)
+		}
+	}
+
+	return errReturned
+}

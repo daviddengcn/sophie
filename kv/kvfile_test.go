@@ -1,4 +1,4 @@
-package sophie
+package kv
 
 import (
 	"fmt"
@@ -6,21 +6,22 @@ import (
 
 	"github.com/daviddengcn/go-assert"
 	"github.com/daviddengcn/go-villa"
+	"github.com/daviddengcn/sophie"
 )
 
 func TestBasic(t *testing.T) {
-	fn := FsPath{Fs: LocalFS, Path: "./test.kv"}
+	fn := sophie.LocalFsPath("./test.kv")
 	defer villa.Path(fn.Path).Remove()
 
-	keys := []String{
+	keys := []sophie.String{
 		"abc", "def",
 	}
-	vals := []VInt{
+	vals := []sophie.VInt{
 		2, 2013,
 	}
 
-	writer, err := NewKVWriter(fn)
-	assert.NoErrorf(t, "NewKVWriter: %v", err)
+	writer, err := NewWriter(fn)
+	assert.NoErrorf(t, "NewWriter: %v", err)
 
 	for i, key := range keys {
 		val := vals[i]
@@ -28,14 +29,14 @@ func TestBasic(t *testing.T) {
 	}
 	assert.NoErrorf(t, "writer.Close()", writer.Close())
 
-	reader, err := NewKVReader(fn)
-	assert.NoErrorf(t, "NewKVReader: %v", err)
+	reader, err := NewReader(fn)
+	assert.NoErrorf(t, "NewReader: %v", err)
 
-	var key String
-	var val VInt
+	var key sophie.String
+	var val sophie.VInt
 	for i := 0; ; i++ {
 		err := reader.Next(&key, &val)
-		if err == EOF {
+		if err == sophie.EOF {
 			break
 		}
 		assert.NoErrorf(t, "reader.Next: %v", err)

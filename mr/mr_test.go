@@ -1,4 +1,4 @@
-package sophie
+package mr
 
 import (
 	"errors"
@@ -8,20 +8,21 @@ import (
 	"testing"
 
 	"github.com/daviddengcn/go-assert"
-	//	"github.com/daviddengcn/go-villa"
+	"github.com/daviddengcn/sophie"
+	"github.com/daviddengcn/sophie/kv"
 )
 
 type linesIter struct {
-	EmptyClose
+	sophie.EmptyClose
 	pos   int
 	lines []string
 }
 
-func (iter *linesIter) Next(key, val SophieReader) error {
+func (iter *linesIter) Next(key, val sophie.SophieReader) error {
 	if iter.pos >= len(iter.lines) {
-		return EOF
+		return sophie.EOF
 	}
-	*(key.(*RawString)) = RawString(iter.lines[iter.pos])
+	*(key.(*sophie.RawString)) = sophie.RawString(iter.lines[iter.pos])
 	iter.pos++
 	return nil
 }
@@ -32,40 +33,43 @@ func (lines linesInput) PartCount() (int, error) {
 	return 1, nil
 }
 
-func (lines linesInput) Iterator(int) (IterateCloser, error) {
+func (lines linesInput) Iterator(int) (sophie.IterateCloser, error) {
 	return &linesIter{lines: lines}, nil
 }
 
 type LinesCounterMapper struct {
-	EmptyOnlyMapper
-	EmptyClose
-
-	intList []Int32
+	sophie.EmptyClose
+	intList []sophie.Int32
 }
 
-func (lcm *LinesCounterMapper) Collector(index int) (CollectCloser, error) {
+func (lcm *LinesCounterMapper) Collector(index int) (sophie.CollectCloser, error) {
 	return lcm, nil
 }
 
-func (lcm *LinesCounterMapper) Collect(key, val SophieWriter) error {
-	if i, ok := key.(Int32); ok {
+func (lcm *LinesCounterMapper) Collect(key, val sophie.SophieWriter) error {
+	if i, ok := key.(sophie.Int32); ok {
 		lcm.intList = append(lcm.intList, i)
 	}
-	if i, ok := val.(Int32); ok {
+	if i, ok := val.(sophie.Int32); ok {
 		lcm.intList = append(lcm.intList, i)
 	}
 	return nil
 }
 
-func (lcm *LinesCounterMapper) NewKey() Sophier {
-	return new(RawString)
+func (lcm *LinesCounterMapper) NewKey() sophie.Sophier {
+	return new(sophie.RawString)
 }
-func (lcm *LinesCounterMapper) NewVal() Sophier {
-	return Null{}
+func (lcm *LinesCounterMapper) NewVal() sophie.Sophier {
+	return sophie.Null{}
 }
-func (lcm *LinesCounterMapper) Map(key, val SophieWriter, c []Collector) error {
+func (lcm *LinesCounterMapper) Map(key, val sophie.SophieWriter,
+	c []sophie.Collector) error {
+
 	//fmt.Printf("Mapping (%v, %v) ...\n", key, val)
-	c[0].Collect(Int32(1), Null{})
+	c[0].Collect(sophie.Int32(1), sophie.Null{})
+	return nil
+}
+func (lcm *LinesCounterMapper) MapEnd(c []sophie.Collector) error {
 	return nil
 }
 
@@ -109,19 +113,21 @@ func TestMapOnly(t *testing.T) {
 }
 
 type WordCountMapper struct {
-	EmptyMapper
 }
 
-func (wcm *WordCountMapper) NewKey() Sophier {
-	return new(RawString)
+func (wcm *WordCountMapper) NewKey() sophie.Sophier {
+	return new(sophie.RawString)
 }
-func (wcm *WordCountMapper) NewVal() Sophier {
-	return Null{}
+func (wcm *WordCountMapper) NewVal() sophie.Sophier {
+	return sophie.Null{}
+}
+func (wcm *WordCountMapper) MapEnd(c PartCollector) error {
+	return nil
 }
 
-func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
+func (wcm *WordCountMapper) Map(key, val sophie.SophieWriter, c PartCollector) error {
 	//fmt.Printf("WordCountMapper (%v, %v) ...\n", key, val)
-	line := *(key.(*RawString))
+	line := *(key.(*sophie.RawString))
 	words := strings.Split(string(line), " ")
 	for _, word := range words {
 		if len(word) == 0 {
@@ -129,58 +135,61 @@ func (wcm *WordCountMapper) Map(key, val SophieWriter, c PartCollector) error {
 		}
 		word = strings.ToLower(word)
 		//fmt.Printf("CollectTo %v\n", word)
-		c.CollectTo(int(word[0]), RawString(word), RawVInt(1))
+		c.CollectTo(int(word[0]), sophie.RawString(word), sophie.RawVInt(1))
 		//		c.CollectTo(0, RawString(word), RawVInt(1))
 	}
 	return nil
 }
 
 type WordCountReducer struct {
-	EmptyClose
-	EmptyReducer
+	sophie.EmptyClose
 	sync.Mutex
 	counts map[string]int
 }
 
-func (wc *WordCountReducer) NewKey() Sophier {
-	return new(RawString)
+func (wc *WordCountReducer) NewKey() sophie.Sophier {
+	return new(sophie.RawString)
 }
 
-func (wc *WordCountReducer) NewVal() Sophier {
-	return new(RawVInt)
+func (wc *WordCountReducer) NewVal() sophie.Sophier {
+	return new(sophie.RawVInt)
 }
 
-func (wc *WordCountReducer) Reduce(key SophieWriter, nextVal SophierIterator,
-	c []Collector) error {
+func (wc *WordCountReducer) Reduce(key sophie.SophieWriter,
+	nextVal SophierIterator, c []sophie.Collector) error {
+
 	// fmt.Printf("Reducing %v\n", key)
-	var count RawVInt
+	var count sophie.RawVInt
 	for {
 		val, err := nextVal()
-		if err == EOF {
+		if err == sophie.EOF {
 			break
 		}
 		if err != nil {
 			return err
 		}
 		// fmt.Println("WordCountReducer.Reduce", key, val)
-		count += *(val.(*RawVInt))
+		count += *(val.(*sophie.RawVInt))
 	}
 
 	// fmt.Println("WordCountReducer.Reduce c.Collect", key, count)
 
 	return c[0].Collect(key, count)
 }
+func (wc *WordCountReducer) ReduceEnd(c []sophie.Collector) error {
+	return nil
+}
 
-func (wc *WordCountReducer) Collect(key, val SophieWriter) error {
+func (wc *WordCountReducer) Collect(key, val sophie.SophieWriter) error {
 	wc.Lock()
 	defer wc.Unlock()
 
-	wc.counts[key.(*RawString).Val()] = int(val.(RawVInt))
+	wc.counts[key.(*sophie.RawString).Val()] = int(val.(sophie.RawVInt))
 	//	fmt.Printf("Result %v: %v\n", key, val)
 	return nil
 }
 
-func (wc *WordCountReducer) Collector(index int) (CollectCloser, error) {
+func (wc *WordCountReducer) Collector(index int) (sophie.CollectCloser, error) {
 	return wc, nil
 }
 
@@ -235,10 +244,7 @@ func TestMapReduce(t *testing.T) {
 
 func TestMRFromFile(t *testing.T) {
 	fmt.Println("TestMRFromFile starts")
-	fpRoot := FsPath{
-		Fs:   LocalFS,
-		Path: ".",
-	}
+	fpRoot := sophie.LocalFsPath(".")
 
 	mrin := fpRoot.Join("mrin")
 	mrin.Mkdir(0755)
@@ -248,7 +254,7 @@ func TestMRFromFile(t *testing.T) {
 	/*
 	 * Prepare input
 	 */
-	var inF *KVWriter = nil
+	var inF *kv.Writer = nil
 	index := 0
 	lines := strings.Split(WORDS, "\n")
 	for i, line := range lines {
@@ -258,11 +264,12 @@ func TestMRFromFile(t *testing.T) {
 				index++
 			}
 			var err error
-			inF, err = NewKVWriter(mrin.Join(fmt.Sprintf("part-%05d", index)))
+			inF, err = kv.NewWriter(mrin.Join(fmt.Sprintf("part-%05d", index)))
 			assert.NoErrorf(t, "NewKVWriter: %v", err)
 		}
 
-		assert.NoErrorf(t, "inF.Collect", inF.Collect(RawString(line), Null{}))
+		assert.NoErrorf(t, "inF.Collect",
+			inF.Collect(sophie.RawString(line), sophie.Null{}))
 	}
 	if inF != nil {
 		assert.NoErrorf(t, "inF.Close: %v", inF.Close())
@@ -278,7 +285,7 @@ func TestMRFromFile(t *testing.T) {
 	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
-		Source: []Input{KVDirInput(mrin)},
+		Source: []Input{kv.DirInput(mrin)},
 		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
 			return &mapper
 		}),
@@ -286,7 +293,7 @@ func TestMRFromFile(t *testing.T) {
 		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
 			return &reducer
 		}),
-		Dest: []Output{KVDirOutput(mrout)},
+		Dest: []Output{kv.DirOutput(mrout)},
 
 		Sorter: NewFileSorter(mrtmp),
 	}
@@ -296,18 +303,18 @@ func TestMRFromFile(t *testing.T) {
 	/*
 	 * Check result
 	 */
-	resIn := KVDirInput(mrout)
+	resIn := kv.DirInput(mrout)
 	n, err := resIn.PartCount()
 	assert.NoErrorf(t, "resIn.PartCount(): %v", err)
-	var word RawString
-	var cnt RawVInt
+	var word sophie.RawString
+	var cnt sophie.RawVInt
 	actCnts := make(map[string]int)
 	for i := 0; i < n; i++ {
 		iter, err := resIn.Iterator(i)
 		assert.NoErrorf(t, "resIn.Iterator: %v", err)
 		for {
 			err := iter.Next(&word, &cnt)
-			if err == EOF {
+			if err == sophie.EOF {
 				break
 			}
 			assert.NoErrorf(t, "iter.Next: %v", err)
@@ -332,7 +339,7 @@ func TestReduceValues(t *testing.T) {
 	job := MrJob{
 		Source: []Input{
 			&InputStruct{
-				PartCountFunc: func() (int, error) {
+				PartCountF: func() (int, error) {
 					return 2, nil
 				},
 			},
@@ -340,39 +347,41 @@ func TestReduceValues(t *testing.T) {
 
 		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
 			return &MapperStruct{
-				MapEndFunc: func(c PartCollector) error {
-					return c.CollectTo(0, RawString("part"), VInt(part))
+				MapEndF: func(c PartCollector) error {
+					return c.CollectTo(0, sophie.RawString("part"),
+						sophie.VInt(part))
 				},
 			}
 		}),
 
 		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
-			st := make(map[VInt]bool)
+			st := make(map[sophie.VInt]bool)
 			return &ReducerStruct{
-				NewKeyFunc: func() Sophier {
-					return new(RawString)
+				NewKeyF: func() sophie.Sophier {
+					return new(sophie.RawString)
 				},
 
-				NewValFunc: func() Sophier {
-					return new(VInt)
+				NewValF: func() sophie.Sophier {
+					return new(sophie.VInt)
 				},
 
-				ReduceFunc: func(key SophieWriter, nextVal SophierIterator,
-					c []Collector) error {
-					keyStr := string(*key.(*RawString))
+				ReduceF: func(key sophie.SophieWriter,
+					nextVal SophierIterator, c []sophie.Collector) error {
+
+					keyStr := string(*key.(*sophie.RawString))
 					if keyStr != "part" {
 						return errors.New(`Key should be "part"`)
 					}
 					for {
 						val, err := nextVal()
-						if err == EOF {
+						if err == sophie.EOF {
 							break
 						}
 						if err != nil {
 							return err
 						}
 
-						part := *val.(*VInt)
+						part := *val.(*sophie.VInt)
 						if st[part] {
 							t.Errorf("Duplicated value: %v", part)
 						}

@@ -1,61 +1,115 @@
+/*
+Package sophie provides an raw mechanism for serializing data.
+
+Sub packages:
+  mr  MapReduce library
+  kv  A file format storing key-value pairs.
+*/
 package sophie
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"time"
 )
 
+var (
+	// Returned if some Sophie file is found to have bad format.
+	ErrBadFormat = errors.New("Bad Sophie format")
+	// End of Sophie file.
+	EOF = errors.New("EOF")
+)
+
+// sophie.Reader is an interface extended from io.Reader + io.ByteReader
 type Reader interface {
 	io.Reader
 	io.ByteReader
-	// Skip n bytes
+	// Skip skips n bytes, returns the number of actually skipped
 	Skip(n int64) (int64, error)
 }
 
+// sophie.ReadCloser is sohpie.Reader + io.Closer
 type ReadCloser interface {
 	Reader
 	io.Closer
 }
 
+// sophie.Writer is io.Writer + io.ByteWriter
 type Writer interface {
 	io.Writer
 	io.ByteWriter
 }
 
+// sophie.WriteCloser is sophie.Writer + io.Closer
 type WriteCloser interface {
 	Writer
 	io.Closer
 }
 
+// Iterator is an interface for iterating Sophier kv pairs.
+type Iterator interface {
+	Next(key, val SophieReader) error
+}
+
+// sohpie.IterateCloser is Iterator + io.Closer
+type IterateCloser interface {
+	Iterator
+	io.Closer
+}
+
+// Collector is an interface for collecting Sophie key-value pairs.
+type Collector interface {
+	Collect(key, val SophieWriter) error
+}
+
+// CollectCloser is Collector + io.Closer
+type CollectCloser interface {
+	Collector
+	io.Closer
+}
+
+// The constants for unknown length.
+// @see SophieReader.ReadFrom
 const UNKNOWN_LEN = -1
 
+// SophieReader is the interface for some data structure that can reads fields
+// from a Reader. The data in the Reader could have known length.
+// For all predefined Sophies with prefix Raw, the length must be specified.
 type SophieReader interface {
-	/**
-	 * @param len the number of bytes to read. UNKNOWN_LEN(-1) means unknown length
-	 */
+	// ReadFrom reads fields from a Reader. If l is not UNKNOWN_LEN, it can be
+	// used to determine the border of the serialized data.
+	// @param l  the number of bytes to read. UNKNOWN_LEN(-1) means unknown
+	//           length
 	ReadFrom(r Reader, l int) error
 }
+
+// SophieWriter is the interface for some data structure that can write fields
+// to a Writer.
 type SophieWriter interface {
+	// WriteTo writes fields to the Writer
 	WriteTo(w Writer) error
 }
 
-// Sophier is a basic data structure for serialization
+// Sophier is a basic data structure for serialization.
+// It is SophieReader + SophieWriter
 type Sophier interface {
 	SophieReader
 	SophieWriter
 }
 
-// *SInt32 implements Sophie interface
+// *Int32 implements Sophie interface
 type Int32 int32
 
+// SophieWriter interface
 func (i Int32) WriteTo(w Writer) error {
 	arr := [4]byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 	_, err := w.Write(arr[:])
 	return err
 }
 
+// SophieReader interface
 func (i *Int32) ReadFrom(r Reader, l int) error {
 	if l != UNKNOWN_LEN && l != 4 {
 		return ErrBadFormat
@@ -75,9 +129,10 @@ func (i *Int32) Val() int32 {
 	return int32(*i)
 }
 
-// *SVInt implements Sophie interface and serializing as a vint
+// *VInt implements Sophie interface and serializing as a vint
 type VInt int
 
+// SophieWriter interface
 func (i VInt) WriteTo(w Writer) error {
 	var arr [10]byte
 	n := 0
@@ -92,6 +147,7 @@ func (i VInt) WriteTo(w Writer) error {
 	return err
 }
 
+// SophieReader interface
 func (i *VInt) ReadFrom(r Reader, l int) error {
 	var v VInt
 	b, err := r.ReadByte()
@@ -117,9 +173,11 @@ func (i *VInt) String() string {
 	return fmt.Sprint(*i)
 }
 
-// *SVInt implements Sophie interface and serializing as a vint
+// *RawVInt implements Sophie interface and serializing as a vint.
+// It assumes the length to be known.
 type RawVInt int
 
+// SophieWriter interface
 func (i RawVInt) WriteTo(w Writer) error {
 	var arr [8]byte
 	n := 0
@@ -132,6 +190,7 @@ func (i RawVInt) WriteTo(w Writer) error {
 	return err
 }
 
+// SophieReader interface
 func (i *RawVInt) ReadFrom(r Reader, l int) error {
 	if l < 0 {
 		return ErrBadFormat
@@ -161,7 +220,7 @@ func (i *RawVInt) String() string {
 // *ByteSlice implements Sophier interface.
 type ByteSlice []byte
 
-// Sophier.WriteTo
+// SophieWriter interface
 func (ba ByteSlice) WriteTo(w Writer) error {
 	if err := VInt(len(ba)).WriteTo(w); err != nil {
 		return err
@@ -170,7 +229,7 @@ func (ba ByteSlice) WriteTo(w Writer) error {
 	return err
 }
 
-// Sophier.ReadFrom
+// SophieReader interface
 func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 	var sz VInt
 	if err := sz.ReadFrom(r, UNKNOWN_LEN); err != nil {
@@ -186,13 +245,13 @@ func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 // the length of buffer will be known when decoding.
 type RawByteSlice []byte
 
-// Sophier.WriteTo
+// SophieWriter interface
 func (ba RawByteSlice) WriteTo(w Writer) error {
 	_, err := w.Write(ba)
 	return err
 }
 
-// Sophier.ReadFrom
+// SophieReader interface
 func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if sz < 0 {
 		log.Printf("RawByteSlice expecting a size by get %d", sz)
@@ -210,10 +269,12 @@ func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 // *String implements Sophie interface
 type String string
 
+// SophieWriter interface
 func (s String) WriteTo(w Writer) error {
 	return ByteSlice(s).WriteTo(w)
 }
 
+// SophieReader interface
 func (s *String) ReadFrom(r Reader, l int) error {
 	var ba ByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
@@ -232,11 +293,14 @@ func (s *String) Val() string {
 	return string(*s)
 }
 
+// A helper function that reads a String from a Reader.
 func ReadString(r Reader) (s String, err error) {
 	err = s.ReadFrom(r, UNKNOWN_LEN)
 	return
 }
 
+// A helper function that writes a slice of Strings to a Writer. Serialized data
+// can be read by ReadStringSlice function.
 func WriteStringSlice(w Writer, sl []string) error {
 	if err := VInt(len(sl)).WriteTo(w); err != nil {
 		return err
@@ -249,6 +313,8 @@ func WriteStringSlice(w Writer, sl []string) error {
 	return nil
 }
 
+// A helper function that reads a slice String from a Reader. The data was
+// serialized by WriteStringSlice function.
 func ReadStringSlice(r Reader, sl *[]string) (err error) {
 	var l VInt
 	if err := l.ReadFrom(r, -1); err != nil {
@@ -268,13 +334,15 @@ func ReadStringSlice(r Reader, sl *[]string) (err error) {
 	return nil
 }
 
-// *RawString implements Sophie interface
+// *RawString implements Sophie interface. It assumes the length to be known.
 type RawString string
 
+// SophieWriter interface.
 func (s RawString) WriteTo(w Writer) error {
 	return RawByteSlice(s).WriteTo(w)
 }
 
+// SophieReader interface
 func (s *RawString) ReadFrom(r Reader, l int) error {
 	var ba RawByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
@@ -293,14 +361,18 @@ func (s *RawString) Val() string {
 	return string(*s)
 }
 
+// Null is an empty data structure implementing Sophie interface.
 type Null struct{}
 
+// NULL is a variable of type Null.
 var NULL Null = Null{}
 
+// SophieWriter interface
 func (Null) WriteTo(w Writer) error {
 	return nil
 }
 
+// SophieReader interface
 func (Null) ReadFrom(r Reader, l int) error {
 	if l != UNKNOWN_LEN && l != 0 {
 		return ErrBadFormat
@@ -308,8 +380,10 @@ func (Null) ReadFrom(r Reader, l int) error {
 	return nil
 }
 
+// Time is a time.Time, and *Time implements Sophie interface.
 type Time time.Time
 
+// SophieWriter interface
 func (t Time) WriteTo(w Writer) error {
 	bytes, err := time.Time(t).MarshalBinary()
 	if err != nil {
@@ -318,6 +392,7 @@ func (t Time) WriteTo(w Writer) error {
 	return ByteSlice(bytes).WriteTo(w)
 }
 
+// SophieReader interface
 func (t *Time) ReadFrom(r Reader, l int) error {
 	var bytes ByteSlice
 	if err := (&bytes).ReadFrom(r, l); err != nil {
