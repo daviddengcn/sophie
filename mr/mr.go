@@ -1,3 +1,19 @@
+/*
+Package mr provides a MapReduce framework using Sophie serialization.
+
+A simple MapReduce example is like this:
+
+	job := MrJob {
+		Source: []Input{...},
+
+		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+		}),
+
+		RedFactory:,
+
+		Dest: []Output{...}
+	}
+*/
 package mr
 
 import (
@@ -19,12 +35,6 @@ type Mapper interface {
 	Map(key, val sophie.SophieWriter, c PartCollector) error
 	// MapEnd is invoked after a partition of the Input is mapped.
 	MapEnd(c PartCollector) error
-}
-
-// MapperFactory is a factory of genearting Mapper instances.
-type MapperFactory interface {
-	// Returns a Mapper of specified indexes in the Source and parts.
-	NewMapper(src, part int) Mapper
 }
 
 // An interator for fetching a list of Sophiers. If sophie.EOF is returned as
@@ -54,19 +64,13 @@ type Reducer interface {
 	ReduceEnd(c []sophie.Collector) error
 }
 
-// ReducerFactory is the factory generating instances of Reducers
-type ReducerFactory interface {
-	// Returns a Reducer for a specified partion
-	NewReducer(part int) Reducer
-}
-
 // An MrJob contains a mapping step and a reducing step. In reducing step, kv
 // pairs are sorted by keys, and values of a key are reduced using the Reducer.
 type MrJob struct {
 	// The factory for Mappers
-	MapFactory MapperFactory
+	NewMapperF func(src, part int) Mapper
 	// The factory for Reducers
-	RedFactory ReducerFactory
+	NewReducerF func(part int) Reducer
 
 	// The Sorter that sorts kv pairs mapped by Mappers and provides
 	// SophierIterator for Reducers.
@@ -81,10 +85,10 @@ type MrJob struct {
 // Runs the MrJob.
 // If Sorter is not specified, MemSorters is used.
 func (job *MrJob) Run() error {
-	if job.MapFactory == nil {
+	if job.NewMapperF == nil {
 		return errors.New("MrJob: MapFactory undefined!")
 	}
-	if job.RedFactory == nil {
+	if job.NewReducerF == nil {
 		return errors.New("MrJob: RedFactory undefined!")
 	}
 	if job.Source == nil {
@@ -119,7 +123,7 @@ func (job *MrJob) Run() error {
 					if err != nil {
 						return err
 					}
-					mapper := job.MapFactory.NewMapper(i, part)
+					mapper := job.NewMapperF(i, part)
 					key, val := mapper.NewKey(), mapper.NewVal()
 					iter, err := job.Source[i].Iterator(part)
 					if err != nil {
@@ -181,7 +185,7 @@ func (job *MrJob) Run() error {
 					defer c.Close()
 					cs = append(cs, c)
 				}
-				reducer := job.RedFactory.NewReducer(part)
+				reducer := job.NewReducerF(part)
 				return it.Iterate(cs, reducer)
 			}()
 		}(part, end)

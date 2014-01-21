@@ -31,18 +31,14 @@ type OnlyMapper interface {
 	MapEnd(c []sophie.Collector) error
 }
 
-// The factory interface for generating OnlyMappers
-type OnlyMapperFactory interface {
-	// New an OnlyMapper for a particular part and source index
-	NewMapper(src, part int) OnlyMapper
-}
-
 // MapOnlyJob is a job with a mapping step only.
 type MapOnlyJob struct {
-	// The factory for OnlyMappers
-	MapFactory OnlyMapperFactory
 	// The slice of Inputs
 	Source []Input
+
+	// The factory for OnlyMappers
+	NewMapperF func(src, part int) OnlyMapper
+
 	// The slice of Outputs
 	Dest []Output
 }
@@ -50,8 +46,8 @@ type MapOnlyJob struct {
 // Runs the job.
 // If some of the mapper failed, one of the error is returned.
 func (job *MapOnlyJob) Run() error {
-	if job.MapFactory == nil {
-		return errors.New("MapOnlyJob: MapFactory undefined!")
+	if job.NewMapperF == nil {
+		return errors.New("MapOnlyJob: NewMapperF undefined!")
 	}
 	if job.Source == nil {
 		return errors.New("MapOnlyJob: Source undefined!")
@@ -71,7 +67,7 @@ func (job *MapOnlyJob) Run() error {
 			ends = append(ends, end)
 			go func(i, part, totalPart int, end chan error) {
 				end <- func() error {
-					mapper := job.MapFactory.NewMapper(i, part)
+					mapper := job.NewMapperF(i, part)
 					key, val := mapper.NewKey(), mapper.NewVal()
 					cs := make([]sophie.Collector, 0, len(job.Dest))
 					for _, dst := range job.Dest {

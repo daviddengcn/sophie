@@ -1,6 +1,18 @@
 /*
 Package sophie provides an raw mechanism for serializing data.
 
+It aims at more efficiency than other serialization methods because of the
+following reasons:
+
+* Maximum of reusing objects, allocation and GC are avoided
+* No reflections
+
+Since the serialization is flexible, one can also make some trade-offs between
+efficiency and convinience. E.g., if the data structure may be changed in the
+future, in the ReadFrom/WriteTo, God codec can be used to provide future
+compatibility.
+
+
 Sub packages:
   mr  MapReduce library
   kv  A file format storing key-value pairs.

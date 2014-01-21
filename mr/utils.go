@@ -4,14 +4,6 @@ import (
 	"github.com/daviddengcn/sophie"
 )
 
-// a function type implementing OnlyMapperFactory interface
-type OnlyMapperFactoryFunc func(src, part int) OnlyMapper
-
-// OnlyMapperFactory interface
-func (f OnlyMapperFactoryFunc) NewMapper(src, part int) OnlyMapper {
-	return f(src, part)
-}
-
 // a struct implementing OnlyMapper with funcs.
 type OnlyMapperStruct struct {
 	NewKeyF func() sophie.Sophier
@@ -101,14 +93,6 @@ func (ms *MapperStruct) MapEnd(c PartCollector) error {
 	return nil
 }
 
-// a function type implementing MapperFactory interface
-type MapperFactoryFunc func(src, part int) Mapper
-
-// MapperFactory interface
-func (f MapperFactoryFunc) NewMapper(src, part int) Mapper {
-	return f(src, part)
-}
-
 type nullOutput struct {
 }
 
@@ -160,14 +144,6 @@ func (rs *ReducerStruct) ReduceEnd(c []sophie.Collector) error {
 		return rs.ReduceEndF(c)
 	}
 	return nil
-}
-
-// a function type implementing ReducerFactory interface
-type ReducerFactoryFunc func(part int) Reducer
-
-// ReducerFactory interface
-func (f ReducerFactoryFunc) NewReducer(part int) Reducer {
-	return f(part)
 }
 
 // A struct implementing the Input interface by funcs.

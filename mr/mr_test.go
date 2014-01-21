@@ -100,9 +100,9 @@ func TestMapOnly(t *testing.T) {
 	var mapper LinesCounterMapper
 
 	job := MapOnlyJob{
-		MapFactory: OnlyMapperFactoryFunc(func(src, part int) OnlyMapper {
+		NewMapperF: func(src, part int) OnlyMapper {
 			return &mapper
-		}),
+		},
 
 		Source: []Input{lines},
 		Dest:   []Output{&mapper},
@@ -223,14 +223,14 @@ func TestMapReduce(t *testing.T) {
 	reducer := WordCountReducer{counts: make(map[string]int)}
 
 	job := MrJob{
-		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
-			return &mapper
-		}),
-		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
-			return &reducer
-		}),
 		Source: []Input{lines},
-		Dest:   []Output{&reducer},
+		NewMapperF: func(src, part int) Mapper {
+			return &mapper
+		},
+		NewReducerF: func(part int) Reducer {
+			return &reducer
+		},
+		Dest: []Output{&reducer},
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
@@ -286,16 +286,16 @@ func TestMRFromFile(t *testing.T) {
 
 	job := MrJob{
 		Source: []Input{kv.DirInput(mrin)},
-		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+		NewMapperF: func(src, part int) Mapper {
 			return &mapper
-		}),
-
-		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
-			return &reducer
-		}),
-		Dest: []Output{kv.DirOutput(mrout)},
+		},
 
 		Sorter: NewFileSorter(mrtmp),
+
+		NewReducerF: func(part int) Reducer {
+			return &reducer
+		},
+		Dest: []Output{kv.DirOutput(mrout)},
 	}
 
 	assert.NoErrorf(t, "RunJob: %v", job.Run())
@@ -345,16 +345,16 @@ func TestReduceValues(t *testing.T) {
 			},
 		},
 
-		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
+		NewMapperF: func(src, part int) Mapper {
 			return &MapperStruct{
 				MapEndF: func(c PartCollector) error {
 					return c.CollectTo(0, sophie.RawString("part"),
 						sophie.VInt(part))
 				},
 			}
-		}),
+		},
 
-		RedFactory: ReducerFactoryFunc(func(part int) Reducer {
+		NewReducerF: func(part int) Reducer {
 			st := make(map[sophie.VInt]bool)
 			return &ReducerStruct{
 				NewKeyF: func() sophie.Sophier {
@@ -390,7 +390,7 @@ func TestReduceValues(t *testing.T) {
 					return nil
 				},
 			}
-		}),
+		},
 	}
 	assert.NoErrorf(t, "job.Run failed: %v", job.Run())
 }
