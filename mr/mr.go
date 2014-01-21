@@ -1,18 +1,52 @@
 /*
-Package mr provides a MapReduce framework using Sophie serialization.
+Package mr provides a local concurrent computing model(MapReduce) using Sophie
+serialization.
 
-A simple MapReduce example is like this:
+A simple word count example is like this:
 
 	job := MrJob {
 		Source: []Input{...},
 
-		MapFactory: MapperFactoryFunc(func(src, part int) Mapper {
-		}),
+		NewMapperF: func(src, part int) Mapper {
+			return &MapperStruct {
+				NewKeyF: sophie.NewString,
+				NewValF: sophie.ReturnNULL,
+				MapperF: func(key, val sophie.SophieWriter, c PartCollector) error {
+					line := key.(*RawString).String()
+					words := strings.Split(line, " ")
+					for _, word: range words {
+						c.CollectTo(0, sophie.RawString(word), sophie.VInt(1))
+					}
+				},
+			}
+		},
 
-		RedFactory:,
+		NewReducerF: func(part int) Reducer {
+			return &ReducerStruct {
+				NewKeyF: sophie.NewRawString,
+				NewValF: sophie.NewVInt,
+				ReducerF: func((key sophie.SophieWriter, nextVal SophierIterator,
+					c []sophie.Collector) error {
+					var count sophie.VInt
+					for {
+						val, err := nextVal()
+						if err == sophie.EOF {
+							break
+						}
+						if err != nil {
+							return err
+						}
+						count += val.(*sophie.VInt).Val()
+					}
+					return c[0].Collect(key, count)
+				},
+			}
+		},
 
-		Dest: []Output{...}
+		Dest: []Output{...},
 	}
+
+One can also use MapOnlyJob for simple jobs.
 */
 package mr
 

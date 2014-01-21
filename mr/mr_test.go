@@ -357,13 +357,8 @@ func TestReduceValues(t *testing.T) {
 		NewReducerF: func(part int) Reducer {
 			st := make(map[sophie.VInt]bool)
 			return &ReducerStruct{
-				NewKeyF: func() sophie.Sophier {
-					return new(sophie.RawString)
-				},
-
-				NewValF: func() sophie.Sophier {
-					return new(sophie.VInt)
-				},
+				NewKeyF: sophie.NewRawString,
+				NewValF: sophie.NewVInt,
 
 				ReduceF: func(key sophie.SophieWriter,
 					nextVal SophierIterator, c []sophie.Collector) error {

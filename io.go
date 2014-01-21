@@ -114,6 +114,11 @@ type Sophier interface {
 // *Int32 implements Sophie interface
 type Int32 int32
 
+// Returns a new instance of *Int32 as a Sophier
+func NewInt32() Sophier {
+	return new(Int32)
+}
+
 // SophieWriter interface
 func (i Int32) WriteTo(w Writer) error {
 	arr := [4]byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
@@ -143,6 +148,11 @@ func (i *Int32) Val() int32 {
 
 // *VInt implements Sophie interface and serializing as a vint
 type VInt int
+
+// Returns a new instace of *VInt as a Sophier
+func NewVInt() Sophier {
+	return new(VInt)
+}
 
 // SophieWriter interface
 func (i VInt) WriteTo(w Writer) error {
@@ -189,6 +199,11 @@ func (i *VInt) String() string {
 // It assumes the length to be known.
 type RawVInt int
 
+// Returns a new instance of *RawVInt as a Sophier
+func NewRawVInt() Sophier {
+	return new(RawVInt)
+}
+
 // SophieWriter interface
 func (i RawVInt) WriteTo(w Writer) error {
 	var arr [8]byte
@@ -232,6 +247,11 @@ func (i *RawVInt) String() string {
 // *ByteSlice implements Sophier interface.
 type ByteSlice []byte
 
+// Returns a new instance of *ByteSlice as a Sophier
+func NewByteSlice() Sophier {
+	return new(ByteSlice)
+}
+
 // SophieWriter interface
 func (ba ByteSlice) WriteTo(w Writer) error {
 	if err := VInt(len(ba)).WriteTo(w); err != nil {
@@ -257,6 +277,11 @@ func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 // the length of buffer will be known when decoding.
 type RawByteSlice []byte
 
+// Returns a new instance of *RawByteSlice as a Sophier
+func NewRawByteSlice() Sophier {
+	return new(RawByteSlice)
+}
+
 // SophieWriter interface
 func (ba RawByteSlice) WriteTo(w Writer) error {
 	_, err := w.Write(ba)
@@ -280,6 +305,11 @@ func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 
 // *String implements Sophie interface
 type String string
+
+// Returns a new instance of *String as a Sophier
+func NewString() Sophier {
+	return new(String)
+}
 
 // SophieWriter interface
 func (s String) WriteTo(w Writer) error {
@@ -349,6 +379,11 @@ func ReadStringSlice(r Reader, sl *[]string) (err error) {
 // *RawString implements Sophie interface. It assumes the length to be known.
 type RawString string
 
+// Returns a new instance of *RawByteSlice as a Sophier
+func NewRawString() Sophier {
+	return new(RawString)
+}
+
 // SophieWriter interface.
 func (s RawString) WriteTo(w Writer) error {
 	return RawByteSlice(s).WriteTo(w)
@@ -379,6 +414,10 @@ type Null struct{}
 // NULL is a variable of type Null.
 var NULL Null = Null{}
 
+func ReturnNULL Sophier {
+	return NULL
+}
+
 // SophieWriter interface
 func (Null) WriteTo(w Writer) error {
 	return nil
@@ -394,6 +433,11 @@ func (Null) ReadFrom(r Reader, l int) error {
 
 // Time is a time.Time, and *Time implements Sophie interface.
 type Time time.Time
+
+// Returns a new instance of *Time as a Sophier
+func NewTime() Sophier {
+	return new(Time)
+}
 
 // SophieWriter interface
 func (t Time) WriteTo(w Writer) error {
