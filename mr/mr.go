@@ -45,6 +45,10 @@ A simple word count example is like this:
 
 		Dest: []Output{...},
 	}
+	
+	if err := job.Run(); err != nil {
+		log.Fatalf("job.Run failed: %v", err)
+	}
 
 One can also use MapOnlyJob for simple jobs.
 */
