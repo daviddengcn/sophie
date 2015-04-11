@@ -56,7 +56,6 @@ package mr
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/daviddengcn/sophie"
@@ -199,7 +198,7 @@ func (job *MrJob) Run() error {
 		}
 	}
 	if err := sorters.ClosePartCollectors(); err != nil {
-		fmt.Printf("sorters.ClosePartCollectors(): %v", err)
+		log.Printf("sorters.ClosePartCollectors(): %v", err)
 	}
 	log.Printf("Map ends, begin to reduce")
 
