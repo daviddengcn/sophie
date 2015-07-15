@@ -45,7 +45,7 @@ A simple word count example is like this:
 
 		Dest: []Output{...},
 	}
-	
+
 	if err := job.Run(); err != nil {
 		log.Fatalf("job.Run failed: %v", err)
 	}
@@ -123,10 +123,10 @@ type MrJob struct {
 // If Sorter is not specified, MemSorters is used.
 func (job *MrJob) Run() error {
 	if job.NewMapperF == nil {
-		return errors.New("MrJob: MapFactory undefined!")
+		return errors.New("MrJob: NewMapperF undefined!")
 	}
 	if job.NewReducerF == nil {
-		return errors.New("MrJob: RedFactory undefined!")
+		return errors.New("MrJob: NewReducerF undefined!")
 	}
 	if job.Source == nil {
 		return errors.New("MrJob: Source undefined!")
@@ -229,8 +229,7 @@ func (job *MrJob) Run() error {
 	}
 
 	for _, end := range ends {
-		err := <-end
-		if err != nil {
+		if err := <-end; err != nil {
 			return err
 		}
 	}

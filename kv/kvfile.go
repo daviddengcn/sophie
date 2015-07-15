@@ -8,11 +8,12 @@ KVFile format:
 package kv
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+
+	"github.com/golangplus/bytes"
 
 	"github.com/daviddengcn/go-villa"
 	"github.com/daviddengcn/sophie"
@@ -22,7 +23,7 @@ import (
 // *kv.Writer implements the sophie.CollectCloser interface.
 type Writer struct {
 	writer sophie.WriteCloser
-	objBuf bytes.Buffer
+	objBuf bytesp.ByteSlice
 }
 
 // NewWriter returns a *kv.Writer for writing a kv file at the specified FsPath.
@@ -47,19 +48,19 @@ func (kvw *Writer) Collect(key, val sophie.SophieWriter) error {
 	// write key
 	kvw.objBuf.Reset()
 	key.WriteTo(&kvw.objBuf)
-	if err := sophie.VInt(kvw.objBuf.Len()).WriteTo(kvw.writer); err != nil {
+	if err := sophie.VInt(len(kvw.objBuf)).WriteTo(kvw.writer); err != nil {
 		return err
 	}
-	if _, err := kvw.writer.Write(kvw.objBuf.Bytes()); err != nil {
+	if _, err := kvw.writer.Write([]byte(kvw.objBuf)); err != nil {
 		return err
 	}
 	// write val
 	kvw.objBuf.Reset()
 	val.WriteTo(&kvw.objBuf)
-	if err := sophie.VInt(kvw.objBuf.Len()).WriteTo(kvw.writer); err != nil {
+	if err := sophie.VInt(len(kvw.objBuf)).WriteTo(kvw.writer); err != nil {
 		return err
 	}
-	if _, err := kvw.writer.Write(kvw.objBuf.Bytes()); err != nil {
+	if _, err := kvw.writer.Write([]byte(kvw.objBuf)); err != nil {
 		return err
 	}
 	// success
