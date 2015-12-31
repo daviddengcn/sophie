@@ -112,7 +112,9 @@ func NewReader(fp sophie.FsPath) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{countedReadCloser{ReadCloser: reader}}, nil
+	return &Reader{
+		reader: countedReadCloser{ReadCloser: reader},
+	}, nil
 }
 
 // io.Closer interface
@@ -221,8 +223,12 @@ func ReadAsByteOffs(fp sophie.FsPath) (buffer bytesp.Slice, keyOffs, keyEnds, va
 // WriteByteOffs generates a kv file with key-value pairs represented as a
 // slice of buffer and some int slices of key offsets, key ends, value offsets,
 // and value ends.
-func WriteByteOffs(fp sophie.FsPath, buffer []byte,
-	keyOffs, keyEnds, valOffs, valEnds []int) error {
+func WriteByteOffs(fp sophie.FsPath, buffer []byte, keyOffs, keyEnds, valOffs, valEnds []int) error {
+	if len(keyOffs) != len(keyEnds) || len(keyOffs) != len(valOffs) || len(keyOffs) != len(valEnds) {
+		return fmt.Errorf("Length of keyOffs(%d), keyEnds(%d), valOffs(%d) and valEnds(%d) must be the same",
+			len(keyOffs), len(keyEnds), len(valOffs), len(valEnds))
+	}
+
 	writer, err := fp.Create()
 	if err != nil {
 		return err
