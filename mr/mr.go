@@ -76,6 +76,18 @@ type Mapper interface {
 
 // An interator for fetching a list of Sophiers. If sophie.EOF is returned as
 // the error, no further Sophiers are avaiable.
+// Typical usage:
+//   var SophierIterator next
+//   for {
+//       vl, err := next()
+//       if err == sophie.EOF {
+//           break
+//       }
+//       if err != nil {
+//           return err
+//       }
+//       ... consume vl ...
+//   }
 type SophierIterator func() (sophie.Sophier, error)
 
 // The reducing stage in MrJob.

@@ -40,3 +40,11 @@ func (ics *IterateCloserStruct) Close() error {
 	}
 	return nil
 }
+
+// A func type implementing Collector interface.
+type CollectorF func(key, val SophieWriter) error
+
+// Collector interface.
+func (c CollectorF) Collect(key, val SophieWriter) error {
+	return c(key, val)
+}

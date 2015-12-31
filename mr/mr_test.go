@@ -78,23 +78,24 @@ const (
 Writer implements buffering for an io.Writer object.
 If an error occurs writing to a Writer, no more data will be
 accepted and all subsequent writes will return the error.
-After all data has been written, the client should call the 
+After all data has been written, the client should call the
 Flush method to guarantee all data has been forwarded to the
 underlying io.Writer.
-At least eight people are dead after a bizarre mix of weather across the 
+At least eight people are dead after a bizarre mix of weather across the
 country spawned tornadoes, ice storms and record-setting warmth this weekend.
-Four of the deaths involved two vehicle accidents in Kentucky. Three people 
+Four of the deaths involved two vehicle accidents in Kentucky. Three people
 drowned in the Rolling Fork River near New Hope when a car drove into the water.
 Two people escaped but were hospitalized with hypothermia.
-"Water was out of the banks, considerably up onto the roadway area. They ran 
-their vehicle into the water. Two of the folks were exiting the vehicle as the 
-swift water started pushing the vehicle downstream. The other three occupants 
-of the vehicle were unable to exit," said Joe Prewitt, with Nelson County 
+"Water was out of the banks, considerably up onto the roadway area. They ran
+their vehicle into the water. Two of the folks were exiting the vehicle as the
+swift water started pushing the vehicle downstream. The other three occupants
+of the vehicle were unable to exit," said Joe Prewitt, with Nelson County
 Emergency Management.
 111`
 )
 
 func TestMapOnly(t *testing.T) {
+	fmt.Println(">>> TestMapOnly")
 	lines := linesInput(strings.Split(WORDS, "\n"))
 
 	var mapper LinesCounterMapper
@@ -112,8 +113,7 @@ func TestMapOnly(t *testing.T) {
 	assert.Equals(t, "len(dest)", len(mapper.intList), len(lines))
 }
 
-type WordCountMapper struct {
-}
+type WordCountMapper struct{}
 
 func (wcm *WordCountMapper) NewKey() sophie.Sophier {
 	return new(sophie.RawString)
@@ -217,6 +217,7 @@ func assertMapEquals(t *testing.T, act, exp map[string]int) {
 }
 
 func TestMapReduce(t *testing.T) {
+	fmt.Println(">>> TestMapReduce")
 	lines := linesInput(strings.Split(WORDS, "\n"))
 
 	var mapper WordCountMapper
@@ -243,7 +244,7 @@ func TestMapReduce(t *testing.T) {
 }
 
 func TestMRFromFile(t *testing.T) {
-	fmt.Println("TestMRFromFile starts")
+	fmt.Println(">>> TestMRFromFile")
 	fpRoot := sophie.LocalFsPath(".")
 
 	mrin := fpRoot.Join("mrin")
@@ -327,10 +328,10 @@ func TestMRFromFile(t *testing.T) {
 	// fmt.Println(actCnts)
 
 	assertMapEquals(t, actCnts, expCnts)
-	fmt.Println("TestMRFromFile ends")
 }
 
 func TestReduceValues(t *testing.T) {
+	fmt.Println(">>> TestReduceValues")
 	/*
 	 * Source are of two parts with nothing in each, but at each mapend, a pair
 	 * of <"part", <part>> is collected. So the reducer will check whether a key

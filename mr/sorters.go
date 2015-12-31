@@ -5,6 +5,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/golangplus/bytes"
+
 	"github.com/daviddengcn/go-villa"
 	"github.com/daviddengcn/sophie"
 	"github.com/daviddengcn/sophie/kv"
@@ -12,7 +14,7 @@ import (
 
 // ReduceIterator is an object for Sort to call Reducer.
 type ReduceIterator interface {
-	// Iterate call Reducer.Reduce for each key.
+	// Iterate calls Reducer.Reduce for each key.
 	Iterate(c []sophie.Collector, r Reducer) error
 }
 
@@ -56,7 +58,7 @@ func bytesCmp(a, b []byte) int {
 
 type memSorter struct {
 	sync.Mutex
-	Buffer  villa.ByteSlice
+	Buffer  bytesp.Slice
 	KeyOffs villa.IntSlice
 	ValOffs villa.IntSlice
 	ValEnds villa.IntSlice
@@ -218,7 +220,7 @@ func (mo *mapOut) Collect(key, val sophie.SophieWriter) error {
 }
 
 func sophieCmp(a, b sophie.Sophier) int {
-	var bufA, bufB villa.ByteSlice
+	var bufA, bufB bytesp.Slice
 	a.WriteTo(&bufA)
 	b.WriteTo(&bufB)
 	return bytesCmp(bufA, bufB)
@@ -362,7 +364,7 @@ func (fs *FileSorter) ReduceParts() []int {
 }
 
 type offsSorter struct {
-	Buffer           villa.ByteSlice
+	Buffer           bytesp.Slice
 	KeyOffs, KeyEnds villa.IntSlice
 	ValOffs, ValEnds villa.IntSlice
 }

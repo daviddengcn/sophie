@@ -171,8 +171,7 @@ func (kvr *Reader) Next(key, val sophie.SophieReader) error {
 
 // ReadAsByteOffs reads a kv file as a slice of buffer and some int slices
 // of key offsets, key ends, value offsets, and value ends.
-func ReadAsByteOffs(fp sophie.FsPath) (buffer villa.ByteSlice,
-	keyOffs, keyEnds, valOffs, valEnds villa.IntSlice, err error) {
+func ReadAsByteOffs(fp sophie.FsPath) (buffer bytesp.Slice, keyOffs, keyEnds, valOffs, valEnds villa.IntSlice, err error) {
 	fi, err := fp.Stat()
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
@@ -184,7 +183,7 @@ func ReadAsByteOffs(fp sophie.FsPath) (buffer villa.ByteSlice,
 	}
 	defer reader.Close()
 
-	buffer = make([]byte, fi.Size())
+	buffer = make(bytesp.Slice, fi.Size())
 	if n, err := reader.Read(buffer); n != len(buffer) || err != nil {
 		if err != nil {
 			return nil, nil, nil, nil, nil, err
@@ -192,7 +191,7 @@ func ReadAsByteOffs(fp sophie.FsPath) (buffer villa.ByteSlice,
 		return nil, nil, nil, nil, nil, errors.New(fmt.Sprintf(
 			"Expected %d bytes, but only read %d bytes", len(buffer), n))
 	}
-	buf := countReadCloser(villa.NewPByteSlice(buffer))
+	buf := countReadCloser(bytesp.NewPSlice(buffer))
 	for buf.Pos < int64(len(buffer)) {
 		var l sophie.VInt
 		if err := (&l).ReadFrom(buf, -1); err != nil {
