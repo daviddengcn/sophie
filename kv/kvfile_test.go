@@ -2,13 +2,25 @@ package kv
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/golangplus/testing/assert"
 
 	"github.com/daviddengcn/go-villa"
 	"github.com/daviddengcn/sophie"
 )
+
+func TestNewWriter_Failed(t *testing.T) {
+	// fn is a file with parent folder not created.
+	fn := path.Join(os.TempDir(), strconv.FormatInt(time.Now().UnixNano(), 10), "kv")
+	w, err := NewWriter(sophie.LocalFsPath(fn))
+	assert.Error(t, err)
+	assert.Equal(t, "w", w, (*Writer)(nil))
+}
 
 func TestReaderWriter(t *testing.T) {
 	fn := sophie.LocalFsPath("./test.kv")

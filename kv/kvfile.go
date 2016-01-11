@@ -23,7 +23,7 @@ import (
 // *kv.Writer implements the sophie.CollectCloser interface.
 type Writer struct {
 	writer sophie.WriteCloser
-	objBuf bytesp.ByteSlice
+	objBuf bytesp.Slice
 }
 
 // NewWriter returns a *kv.Writer for writing a kv file at the specified FsPath.
