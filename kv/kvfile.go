@@ -14,6 +14,7 @@ import (
 	"log"
 
 	"github.com/golangplus/bytes"
+	"github.com/golangplus/errors"
 
 	"github.com/daviddengcn/go-villa"
 	"github.com/daviddengcn/sophie"
@@ -30,7 +31,7 @@ type Writer struct {
 func NewWriter(fp sophie.FsPath) (*Writer, error) {
 	writer, err := fp.Fs.Create(fp.Path)
 	if err != nil {
-		return nil, err
+		return nil, errorsp.WithStacks(err)
 	}
 
 	return &Writer{

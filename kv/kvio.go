@@ -3,6 +3,8 @@ package kv
 import (
 	"fmt"
 
+	"github.com/golangplus/errors"
+
 	"github.com/daviddengcn/sophie"
 )
 
@@ -15,7 +17,7 @@ type DirInput sophie.FsPath
 func (in DirInput) PartCount() (int, error) {
 	infos, err := in.Fs.ReadDir(in.Path)
 	if err != nil {
-		return 0, err
+		return 0, errorsp.WithStacks(err)
 	}
 
 	return len(infos), nil
@@ -39,12 +41,12 @@ type DirOutput sophie.FsPath
 // mr.Output interface
 func (out DirOutput) Collector(index int) (sophie.CollectCloser, error) {
 	if err := out.Fs.Mkdir(out.Path, 0755); err != nil {
-		return nil, err
+		return nil, errorsp.WithStacks(err)
 	}
 	return NewWriter(sophie.FsPath(out).Join(fmt.Sprintf("part-%05d", index)))
 }
 
 // Clean removes the folder.
 func (out DirOutput) Clean() error {
-	return sophie.FsPath(out).Remove()
+	return errorsp.WithStacks(sophie.FsPath(out).Remove())
 }
