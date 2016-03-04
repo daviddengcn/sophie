@@ -53,7 +53,6 @@ func (job *MapOnlyJob) Run() error {
 	if job.Source == nil {
 		return errors.New("MapOnlyJob: Source undefined!")
 	}
-
 	totalPart := 0
 	endss := make([][]chan error, 0, len(job.Source))
 	for i := range job.Source {
@@ -61,7 +60,6 @@ func (job *MapOnlyJob) Run() error {
 		if err != nil {
 			return err
 		}
-
 		ends := make([]chan error, 0, partCount)
 		for part := 0; part < partCount; part++ {
 			end := make(chan error, 1)
@@ -74,41 +72,39 @@ func (job *MapOnlyJob) Run() error {
 					for _, dst := range job.Dest {
 						c, err := dst.Collector(totalPart)
 						if err != nil {
-							return err
+							return errorsp.WithStacksAndMessage(err, "open collector for source %d part %d failed", i, part)
 						}
 						defer c.Close()
 						cs = append(cs, c)
 					}
 					iter, err := job.Source[i].Iterator(part)
 					if err != nil {
-						return err
+						return errorsp.WithStacksAndMessage(err, " open source %d part %d failed", i, part)
 					}
 					defer iter.Close()
 
 					for {
 						if err := iter.Next(key, val); err != nil {
 							if errorsp.Cause(err) != sophie.EOF {
-								return err
+								return errorsp.WithStacksAndMessage(err, "next failed")
 							}
 							break
 						}
-
 						if err := mapper.Map(key, val, cs); err != nil {
-							if err == EOM {
+							if errorsp.Cause(err) == EOM {
+								log.Print("EOM returned, exit early")
 								break
 							}
-							return err
+							return errorsp.WithStacksAndMessage(err, "mapping %v %v failed", key, val)
 						}
 					}
-
-					return mapper.MapEnd(cs)
+					return errorsp.WithStacksAndMessage(mapper.MapEnd(cs), "map end failed")
 				}()
 			}(i, part, totalPart, end)
 			totalPart++
 		}
 		endss = append(endss, ends)
 	}
-
 	var errReturned error
 	for _, ends := range endss {
 		for part, end := range ends {
@@ -120,6 +116,5 @@ func (job *MapOnlyJob) Run() error {
 			log.Printf("No error for mapper %d...", part)
 		}
 	}
-
 	return errReturned
 }

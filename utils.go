@@ -42,9 +42,33 @@ func (ics *IterateCloserStruct) Close() error {
 }
 
 // A func type implementing Collector interface.
+// A nil func is a no-op Collector.
 type CollectorF func(key, val SophieWriter) error
 
 // Collector interface.
 func (c CollectorF) Collect(key, val SophieWriter) error {
+	if c == nil {
+		return nil
+	}
 	return c(key, val)
+}
+
+// CollectCloserStruct is a struct whose pointer implements CollectCloser interface
+type CollectCloserStruct struct {
+	CollectF func(SophieWriter, SophieWriter) error
+	CloseF   func() error
+}
+
+func (c *CollectCloserStruct) Collect(k, v SophieWriter) error {
+	if c.CollectF == nil {
+		return nil
+	}
+	return c.CollectF(k, v)
+}
+
+func (c *CollectCloserStruct) Close() error {
+	if c.CloseF == nil {
+		return nil
+	}
+	return c.CloseF()
 }

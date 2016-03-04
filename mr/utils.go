@@ -93,15 +93,20 @@ func (ms *MapperStruct) MapEnd(c PartCollector) error {
 	return nil
 }
 
-type nullOutput struct {
+// OutputStruct is a struct whose pointer implements Output interface.
+type OutputStruct struct {
+	CollectorF func(int) (sophie.CollectCloser, error)
 }
 
-func (nullOutput) Collector(index int) (sophie.CollectCloser, error) {
-	return sophie.NullCollectCloser, nil
+func (o *OutputStruct) Collector(i int) (sophie.CollectCloser, error) {
+	if o.CollectorF == nil {
+		return sophie.NullCollectCloser, nil
+	}
+	return o.CollectorF(i)
 }
 
 // A helper variable with an Output returning the NullCollectCloser
-var NullOutput = nullOutput{}
+var NullOutput = &OutputStruct{}
 
 // A struct implementing Reducer interface by funcs.
 type ReducerStruct struct {

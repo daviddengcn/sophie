@@ -94,25 +94,6 @@ Emergency Management.
 111`
 )
 
-func TestMapOnly(t *testing.T) {
-	fmt.Println(">>> TestMapOnly")
-	lines := linesInput(strings.Split(WORDS, "\n"))
-
-	var mapper LinesCounterMapper
-
-	job := MapOnlyJob{
-		NewMapperF: func(src, part int) OnlyMapper {
-			return &mapper
-		},
-
-		Source: []Input{lines},
-		Dest:   []Output{&mapper},
-	}
-
-	assert.NoErrorf(t, "RunJob: %v", job.Run())
-	assert.Equals(t, "len(dest)", len(mapper.intList), len(lines))
-}
-
 type WordCountMapper struct{}
 
 func (wcm *WordCountMapper) NewKey() sophie.Sophier {
