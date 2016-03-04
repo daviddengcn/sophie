@@ -55,10 +55,10 @@ One can also use MapOnlyJob for simple jobs.
 package mr
 
 import (
-	"errors"
 	"log"
 
 	"github.com/daviddengcn/sophie"
+	"github.com/golangplus/errors"
 )
 
 // The mapping stage in MrJob.
@@ -99,7 +99,7 @@ type Reducer interface {
 	// to get all values:
 	//   for {
 	//	 	val, err := nextVal()
-	//   	if err == sophie.EOF {
+	//   	if errorsp.Cause(err) == sophie.EOF {
 	//   		break;
 	//   	}
 	//      if err != nil {
@@ -135,15 +135,14 @@ type MrJob struct {
 // If Sorter is not specified, MemSorters is used.
 func (job *MrJob) Run() error {
 	if job.NewMapperF == nil {
-		return errors.New("MrJob: NewMapperF undefined!")
+		return errorsp.NewWithStacks("MrJob: NewMapperF undefined!")
 	}
 	if job.NewReducerF == nil {
-		return errors.New("MrJob: NewReducerF undefined!")
+		return errorsp.NewWithStacks("MrJob: NewReducerF undefined!")
 	}
 	if job.Source == nil {
-		return errors.New("MrJob: Source undefined!")
+		return errorsp.NewWithStacks("MrJob: Source undefined!")
 	}
-
 	/*
 	 * Map
 	 */
@@ -159,9 +158,8 @@ func (job *MrJob) Run() error {
 	for i := range job.Source {
 		partCount, err := job.Source[i].PartCount()
 		if err != nil {
-			return err
+			return errorsp.WithStacksAndMessage(err, "part count of source %d", i)
 		}
-
 		ends := make([]chan error, 0, partCount)
 		for part := 0; part < partCount; part++ {
 			end := make(chan error, 1)
@@ -170,26 +168,25 @@ func (job *MrJob) Run() error {
 				end <- func() error {
 					c, err := sorters.NewPartCollector(totalPart)
 					if err != nil {
-						return err
+						return errorsp.WithStacksAndMessage(err, "new part collector for source %d part %d", i, part)
 					}
 					mapper := job.NewMapperF(i, part)
 					key, val := mapper.NewKey(), mapper.NewVal()
 					iter, err := job.Source[i].Iterator(part)
 					if err != nil {
-						return err
+						return errorsp.WithStacksAndMessage(err, "source %d part %d", i, part)
 					}
 					defer iter.Close()
 
 					for {
 						if err := iter.Next(key, val); err != nil {
-							if err == sophie.EOF {
+							if errorsp.Cause(err) == sophie.EOF {
 								break
 							}
-							return err
+							return errorsp.WithStacksAndMessage(err, "next in source %d part %d", i, part)
 						}
-
 						if err := mapper.Map(key, val, c); err != nil {
-							return err
+							return errorsp.WithStacksAndMessage(err, "mapping %v %v in source %d part %d", key, val, i, part)
 						}
 					}
 					return mapper.MapEnd(c)
@@ -197,10 +194,8 @@ func (job *MrJob) Run() error {
 			}(i, part, totalPart, end)
 			totalPart++
 		}
-
 		endss = append(endss, ends)
 	}
-
 	for _, ends := range endss {
 		for _, end := range ends {
 			err := <-end
@@ -223,7 +218,7 @@ func (job *MrJob) Run() error {
 			end <- func() error {
 				it, err := sorters.NewReduceIterator(part)
 				if err != nil {
-					return err
+					return errorsp.WithStacksAndMessage(err, "new reduce iterator for part %d", part)
 				}
 				cs := make([]sophie.Collector, 0, len(job.Dest))
 				for _, dst := range job.Dest {
@@ -239,7 +234,6 @@ func (job *MrJob) Run() error {
 			}()
 		}(part, end)
 	}
-
 	for _, end := range ends {
 		if err := <-end; err != nil {
 			return err

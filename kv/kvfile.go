@@ -8,10 +8,7 @@ KVFile format:
 package kv
 
 import (
-	"errors"
-	"fmt"
 	"io"
-	"log"
 
 	"github.com/golangplus/bytes"
 	"github.com/golangplus/errors"
@@ -127,47 +124,38 @@ func (kvr *Reader) Close() error {
 func (kvr *Reader) Next(key, val sophie.SophieReader) error {
 	var l sophie.VInt
 	if err := (&l).ReadFrom(&kvr.reader, -1); err != nil {
-		if err == io.EOF {
+		if errorsp.Cause(err) == io.EOF {
 			return sophie.EOF
 		}
-		log.Printf("Failed to read key-lenth: %v", err)
-		return err
+		return errorsp.WithStacksAndMessage(err, "reading key length failed")
 	}
 	posEnd := kvr.reader.Pos + int64(l)
 	if err := key.ReadFrom(&kvr.reader, int(l)); err != nil {
-		if err == io.EOF {
-			log.Printf("Unexpected EOF reading key")
-			return sophie.ErrBadFormat
+		if errorsp.Cause(err) == io.EOF {
+			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading key")
 		}
-		log.Printf("Reading key failed: %v", err)
-		return err
+		return errorsp.WithStacksAndMessage(err, "reading key %v failed", key)
 	}
 	if kvr.reader.Pos != posEnd {
-		log.Printf("PosEnd wrong after reading key(len = %d) %v: exp %d, act %d",
-			l, key, posEnd, kvr.reader.Pos)
-		return sophie.ErrBadFormat
+		return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "PosEnd wrong after reading key(len = %d) %v: exp %d, act %d", l, key, posEnd, kvr.reader.Pos)
 	}
 
 	if err := (&l).ReadFrom(&kvr.reader, -1); err != nil {
-		if err == io.EOF {
-			log.Printf("Error format of val length for key %v", key)
-			return sophie.ErrBadFormat
+		if errorsp.Cause(err) == io.EOF {
+			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading val length for key %v", key)
 		}
 		return err
 	}
 	posEnd = kvr.reader.Pos + int64(l)
 	if err := val.ReadFrom(&kvr.reader, int(l)); err != nil {
-		if err == io.EOF {
-			log.Printf("Unexpected EOF reading val for key %v", key)
-			return sophie.ErrBadFormat
+		if errorsp.Cause(err) == io.EOF {
+			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading val for key %v", key)
 		}
-		log.Printf("Reading value for key %v failed: %v", key, err)
-		return err
+		return errorsp.WithStacksAndMessage(err, "reading value for key %v failed", key)
 	}
 	if kvr.reader.Pos != posEnd {
-		log.Printf("PosEnd wrong after reading key %v, value %v: exp %d, act %d",
+		return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "PosEnd wrong after reading key %v, value %v: exp %d, act %d",
 			key, val, posEnd, kvr.reader.Pos)
-		return sophie.ErrBadFormat
 	}
 	return nil
 }
@@ -177,44 +165,39 @@ func (kvr *Reader) Next(key, val sophie.SophieReader) error {
 func ReadAsByteOffs(fp sophie.FsPath) (buffer bytesp.Slice, keyOffs, keyEnds, valOffs, valEnds villa.IntSlice, err error) {
 	fi, err := fp.Stat()
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, errorsp.WithStacks(err)
 	}
 
 	reader, err := fp.Open()
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, errorsp.WithStacks(err)
 	}
 	defer reader.Close()
 
 	buffer = make(bytesp.Slice, fi.Size())
 	if n, err := reader.Read(buffer); n != len(buffer) || err != nil {
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, errorsp.WithStacksAndMessage(err, "n = %d", n)
 		}
-		return nil, nil, nil, nil, nil, errors.New(fmt.Sprintf(
-			"Expected %d bytes, but only read %d bytes", len(buffer), n))
+		return nil, nil, nil, nil, nil, errorsp.NewWithStacks("Expected %d bytes, but only read %d bytes", len(buffer), n)
 	}
 	buf := countReadCloser(bytesp.NewPSlice(buffer))
 	for buf.Pos < int64(len(buffer)) {
 		var l sophie.VInt
 		if err := (&l).ReadFrom(buf, -1); err != nil {
-			log.Printf("Failed to read key-lenth: %v", err)
-			return nil, nil, nil, nil, nil, sophie.ErrBadFormat
+			return nil, nil, nil, nil, nil, errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "failed to read key-lenth: %v", err)
 		}
 		keyOffs = append(keyOffs, int(buf.Pos))
 		if _, err := buf.Skip(int64(l)); err != nil {
-			log.Printf("Failed to skip key: %v", err)
-			return nil, nil, nil, nil, nil, sophie.ErrBadFormat
+			return nil, nil, nil, nil, nil, errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "failed to skip key: %v", err)
 		}
 		keyEnds = append(keyEnds, int(buf.Pos))
 		if err := (&l).ReadFrom(buf, -1); err != nil {
-			log.Printf("Failed to read value-lenth: %v", err)
-			return nil, nil, nil, nil, nil, sophie.ErrBadFormat
+			return nil, nil, nil, nil, nil, errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "failed to read value-lenth: %v", err)
 		}
 		valOffs = append(valOffs, int(buf.Pos))
 		if _, err := buf.Skip(int64(l)); err != nil {
-			log.Printf("Failed to skip value: %v", err)
-			return nil, nil, nil, nil, nil, sophie.ErrBadFormat
+			return nil, nil, nil, nil, nil, errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "failed to read value: %v", err)
 		}
 		valEnds = append(valEnds, int(buf.Pos))
 	}
@@ -226,29 +209,28 @@ func ReadAsByteOffs(fp sophie.FsPath) (buffer bytesp.Slice, keyOffs, keyEnds, va
 // and value ends.
 func WriteByteOffs(fp sophie.FsPath, buffer []byte, keyOffs, keyEnds, valOffs, valEnds []int) error {
 	if len(keyOffs) != len(keyEnds) || len(keyOffs) != len(valOffs) || len(keyOffs) != len(valEnds) {
-		return fmt.Errorf("Length of keyOffs(%d), keyEnds(%d), valOffs(%d) and valEnds(%d) must be the same",
+		return errorsp.NewWithStacks("length of keyOffs(%d), keyEnds(%d), valOffs(%d) and valEnds(%d) must be the same",
 			len(keyOffs), len(keyEnds), len(valOffs), len(valEnds))
 	}
-
 	writer, err := fp.Create()
 	if err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	defer writer.Close()
 
 	for i, keyOff := range keyOffs {
 		keyEnd, valOff, valEnd := keyEnds[i], valOffs[i], valEnds[i]
 		if err := sophie.VInt(keyEnd - keyOff).WriteTo(writer); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 		if _, err := writer.Write(buffer[keyOff:keyEnd]); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 		if err := sophie.VInt(valEnd - valOff).WriteTo(writer); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 		if _, err := writer.Write(buffer[valOff:valEnd]); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 	}
 	return nil

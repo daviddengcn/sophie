@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golangplus/errors"
 	"github.com/golangplus/testing/assert"
 
 	"github.com/daviddengcn/go-villa"
@@ -49,7 +50,7 @@ func TestReaderWriter(t *testing.T) {
 	var val sophie.VInt
 	for i := 0; ; i++ {
 		err := reader.Next(&key, &val)
-		if err == sophie.EOF {
+		if errorsp.Cause(err) == sophie.EOF {
 			break
 		}
 		assert.NoError(t, err)

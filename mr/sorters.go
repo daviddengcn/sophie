@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/golangplus/bytes"
+	"github.com/golangplus/errors"
 
 	"github.com/daviddengcn/go-villa"
 	"github.com/daviddengcn/sophie"
@@ -87,13 +88,12 @@ func (ms *memSorter) Iterate(c []sophie.Collector, r Reducer) error {
 		if err := key.ReadFrom(&keyBuf, len(keyBuf)); err != nil {
 			return err
 		}
-
 		curVal := idx
 		idx++
 
 		valIter := func() (sophie.Sophier, error) {
 			if curVal < 0 {
-				// not values for this key, return EOF
+				// no values for this key, return EOF
 				return nil, sophie.EOF
 			}
 			// fetch value
@@ -114,20 +114,18 @@ func (ms *memSorter) Iterate(c []sophie.Collector, r Reducer) error {
 			}
 			return val, nil
 		}
-
 		if err := r.Reduce(key, valIter, c); err != nil {
-			return err
+			return errorsp.WithStacksAndMessage(err, "reduce %v failed", key)
 		}
 		// iterate to end in case the reducer doesn't
 		for curVal >= 0 {
 			if _, err := valIter(); err != nil {
-				if err != sophie.EOF {
+				if errorsp.Cause(err) != sophie.EOF {
 					return err
 				}
 			}
 		}
 	}
-
 	r.ReduceEnd(c)
 
 	return nil
@@ -248,7 +246,7 @@ func (mo *mapOut) Iterate(c []sophie.Collector, r Reducer) error {
 
 			err = mo.reader.Next(nextKey, nextVal)
 			if err != nil {
-				if err != sophie.EOF {
+				if errorsp.Cause(err) != sophie.EOF {
 					return s, err
 				}
 				// all key/val read
@@ -261,12 +259,12 @@ func (mo *mapOut) Iterate(c []sophie.Collector, r Reducer) error {
 			return s, nil
 		}
 		if err := r.Reduce(key, valIter, c); err != nil {
-			return err
+			return errorsp.WithStacksAndMessage(err, "reduce %v failed", key)
 		}
 		// r.Reduce could return before iterating all values
 		for curVal != nil {
 			if _, err := valIter(); err != nil {
-				if err != sophie.EOF {
+				if errorsp.Cause(err) != sophie.EOF {
 					return err
 				}
 			}

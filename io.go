@@ -25,6 +25,8 @@ import (
 	"io"
 	"log"
 	"time"
+
+	"github.com/golangplus/errors"
 )
 
 var (
@@ -123,18 +125,18 @@ func NewInt32() Sophier {
 func (i Int32) WriteTo(w Writer) error {
 	arr := [4]byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
 	_, err := w.Write(arr[:])
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // SophieReader interface
 func (i *Int32) ReadFrom(r Reader, l int) error {
 	if l != UNKNOWN_LEN && l != 4 {
-		return ErrBadFormat
+		return errorsp.WithStacksAndMessage(ErrBadFormat, "l = %d", l)
 	}
 
 	var arr [4]byte
 	if _, err := io.ReadFull(r, arr[:]); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 
 	*i = Int32(arr[0]) | Int32(arr[1])<<8 | Int32(arr[2])<<16 |
@@ -166,7 +168,7 @@ func (i VInt) WriteTo(w Writer) error {
 	arr[n] = byte(i)
 	n++
 	_, err := w.Write(arr[:n])
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // SophieReader interface
@@ -174,12 +176,12 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 	var v VInt
 	b, err := r.ReadByte()
 	if err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	v = VInt(b & 0x7f)
 	for n := uint(7); b&0x80 != 0; n += 7 {
 		if b, err = r.ReadByte(); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 		v |= VInt(b&0x7f) << n
 	}
@@ -214,20 +216,20 @@ func (i RawVInt) WriteTo(w Writer) error {
 		i >>= 8
 	}
 	_, err := w.Write(arr[:n])
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // SophieReader interface
 func (i *RawVInt) ReadFrom(r Reader, l int) error {
 	if l < 0 {
-		return ErrBadFormat
+		return errorsp.WithStacksAndMessage(ErrBadFormat, "l = %d", l)
 	}
 	var v RawVInt
 	n := uint(0)
 	for ; l > 0; l-- {
 		b, err := r.ReadByte()
 		if err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 		v |= (RawVInt(b) & 0xff) << n
 		n += 8
@@ -255,22 +257,22 @@ func NewByteSlice() Sophier {
 // SophieWriter interface
 func (ba ByteSlice) WriteTo(w Writer) error {
 	if err := VInt(len(ba)).WriteTo(w); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	_, err := w.Write(ba)
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // SophieReader interface
 func (ba *ByteSlice) ReadFrom(r Reader, l int) error {
 	var sz VInt
 	if err := sz.ReadFrom(r, UNKNOWN_LEN); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	*ba = make(ByteSlice, sz)
 
 	_, err := io.ReadFull(r, *ba)
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // *RawByteSlice implements Sophier interface. It encodes byte-slice assuming
@@ -285,14 +287,13 @@ func NewRawByteSlice() Sophier {
 // SophieWriter interface
 func (ba RawByteSlice) WriteTo(w Writer) error {
 	_, err := w.Write(ba)
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // SophieReader interface
 func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if sz < 0 {
-		log.Printf("RawByteSlice expecting a size by get %d", sz)
-		return ErrBadFormat
+		return errorsp.WithStacksAndMessage(ErrBadFormat, "expecting a size but get %d", sz)
 	}
 	*ba = make(RawByteSlice, sz)
 
@@ -300,7 +301,7 @@ func (ba *RawByteSlice) ReadFrom(r Reader, sz int) error {
 	if n != sz {
 		log.Printf("RawByteSlice.ReadFrom: exp %d bytes act %d: %v", sz, n, err)
 	}
-	return err
+	return errorsp.WithStacks(err)
 }
 
 // *String implements Sophie interface
@@ -322,7 +323,6 @@ func (s *String) ReadFrom(r Reader, l int) error {
 	if err := ba.ReadFrom(r, l); err != nil {
 		return err
 	}
-
 	*s = String(ba)
 
 	return nil
@@ -336,20 +336,21 @@ func (s *String) Val() string {
 }
 
 // A helper function that reads a String from a Reader.
-func ReadString(r Reader) (s String, err error) {
-	err = s.ReadFrom(r, UNKNOWN_LEN)
-	return
+func ReadString(r Reader) (String, error) {
+	var s String
+	err := s.ReadFrom(r, UNKNOWN_LEN)
+	return s, err
 }
 
 // A helper function that writes a slice of Strings to a Writer. Serialized data
 // can be read by ReadStringSlice function.
 func WriteStringSlice(w Writer, sl []string) error {
 	if err := VInt(len(sl)).WriteTo(w); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	for _, s := range sl {
 		if err := String(s).WriteTo(w); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 	}
 	return nil
@@ -360,7 +361,7 @@ func WriteStringSlice(w Writer, sl []string) error {
 func ReadStringSlice(r Reader, sl *[]string) (err error) {
 	var l VInt
 	if err := l.ReadFrom(r, -1); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
 	if cap(*sl) < int(l) {
 		*sl = make([]string, l)
@@ -369,10 +370,9 @@ func ReadStringSlice(r Reader, sl *[]string) (err error) {
 	}
 	for i := range *sl {
 		if err := (*String)(&(*sl)[i]).ReadFrom(r, -1); err != nil {
-			return err
+			return errorsp.WithStacks(err)
 		}
 	}
-
 	return nil
 }
 
@@ -393,9 +393,8 @@ func (s RawString) WriteTo(w Writer) error {
 func (s *RawString) ReadFrom(r Reader, l int) error {
 	var ba RawByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
-
 	*s = RawString(ba)
 
 	return nil
@@ -426,7 +425,7 @@ func (Null) WriteTo(w Writer) error {
 // SophieReader interface
 func (Null) ReadFrom(r Reader, l int) error {
 	if l != UNKNOWN_LEN && l != 0 {
-		return ErrBadFormat
+		return errorsp.WithStacksAndMessage(ErrBadFormat, "l = %d", l)
 	}
 	return nil
 }
@@ -443,16 +442,16 @@ func NewTime() Sophier {
 func (t Time) WriteTo(w Writer) error {
 	bytes, err := time.Time(t).MarshalBinary()
 	if err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
-	return ByteSlice(bytes).WriteTo(w)
+	return errorsp.WithStacks(ByteSlice(bytes).WriteTo(w))
 }
 
 // SophieReader interface
 func (t *Time) ReadFrom(r Reader, l int) error {
 	var bytes ByteSlice
 	if err := (&bytes).ReadFrom(r, l); err != nil {
-		return err
+		return errorsp.WithStacks(err)
 	}
-	return ((*time.Time)(t)).UnmarshalBinary(bytes)
+	return errorsp.WithStacks(((*time.Time)(t)).UnmarshalBinary(bytes))
 }

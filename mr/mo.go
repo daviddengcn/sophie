@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/daviddengcn/sophie"
+	"github.com/golangplus/errors"
 )
 
 var (
@@ -86,7 +87,7 @@ func (job *MapOnlyJob) Run() error {
 
 					for {
 						if err := iter.Next(key, val); err != nil {
-							if err != sophie.EOF {
+							if errorsp.Cause(err) != sophie.EOF {
 								return err
 							}
 							break
