@@ -31,7 +31,8 @@ import (
 
 var (
 	// Returned if some Sophie file is found to have bad format.
-	ErrBadFormat = errors.New("Bad Sophie format")
+	ErrBadFormat     = errors.New("Bad Sophie format")
+	ErrUnexpectedEOF = errors.New("unexpected enf of file")
 	// End of Sophie file.
 	EOF = errors.New("EOF")
 )

@@ -183,6 +183,10 @@ func (job *MrJob) Run() error {
 							if errorsp.Cause(err) == sophie.EOF {
 								break
 							}
+							if errorsp.Cause(err) == sophie.ErrUnexpectedEOF {
+								log.Printf("Ignoring the error: %v", err)
+								break
+							}
 							return errorsp.WithStacksAndMessage(err, "next in source %d part %d", i, part)
 						}
 						if err := mapper.Map(key, val, c); err != nil {

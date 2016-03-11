@@ -132,7 +132,7 @@ func (kvr *Reader) Next(key, val sophie.SophieReader) error {
 	posEnd := kvr.reader.Pos + int64(l)
 	if err := key.ReadFrom(&kvr.reader, int(l)); err != nil {
 		if errorsp.Cause(err) == io.EOF {
-			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading key")
+			return errorsp.WithStacksAndMessage(sophie.ErrUnexpectedEOF, "Unexpected EOF reading key")
 		}
 		return errorsp.WithStacksAndMessage(err, "reading key %v failed", key)
 	}
@@ -142,14 +142,14 @@ func (kvr *Reader) Next(key, val sophie.SophieReader) error {
 
 	if err := (&l).ReadFrom(&kvr.reader, -1); err != nil {
 		if errorsp.Cause(err) == io.EOF {
-			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading val length for key %v", key)
+			return errorsp.WithStacksAndMessage(sophie.ErrUnexpectedEOF, "Unexpected EOF reading val length for key %v", key)
 		}
 		return err
 	}
 	posEnd = kvr.reader.Pos + int64(l)
 	if err := val.ReadFrom(&kvr.reader, int(l)); err != nil {
 		if errorsp.Cause(err) == io.EOF {
-			return errorsp.WithStacksAndMessage(sophie.ErrBadFormat, "Unexpected EOF reading val for key %v", key)
+			return errorsp.WithStacksAndMessage(sophie.ErrUnexpectedEOF, "Unexpected EOF reading val for key %v", key)
 		}
 		return errorsp.WithStacksAndMessage(err, "reading value for key %v failed", key)
 	}
