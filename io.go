@@ -31,10 +31,7 @@ import (
 
 var (
 	// Returned if some Sophie file is found to have bad format.
-	ErrBadFormat     = errors.New("Bad Sophie format")
-	ErrUnexpectedEOF = errors.New("unexpected enf of file")
-	// End of Sophie file.
-	EOF = errors.New("EOF")
+	ErrBadFormat = errors.New("Bad Sophie format")
 )
 
 // sophie.Reader is an interface extended from io.Reader + io.ByteReader
@@ -139,7 +136,6 @@ func (i *Int32) ReadFrom(r Reader, l int) error {
 	if _, err := io.ReadFull(r, arr[:]); err != nil {
 		return errorsp.WithStacks(err)
 	}
-
 	*i = Int32(arr[0]) | Int32(arr[1])<<8 | Int32(arr[2])<<16 |
 		Int32(arr[3])<<24
 	return nil
@@ -182,6 +178,9 @@ func (i *VInt) ReadFrom(r Reader, l int) error {
 	v = VInt(b & 0x7f)
 	for n := uint(7); b&0x80 != 0; n += 7 {
 		if b, err = r.ReadByte(); err != nil {
+			if errorsp.Cause(err) == io.EOF {
+				return errorsp.WithStacks(io.ErrUnexpectedEOF)
+			}
 			return errorsp.WithStacks(err)
 		}
 		v |= VInt(b&0x7f) << n
@@ -394,7 +393,7 @@ func (s RawString) WriteTo(w Writer) error {
 func (s *RawString) ReadFrom(r Reader, l int) error {
 	var ba RawByteSlice
 	if err := ba.ReadFrom(r, l); err != nil {
-		return errorsp.WithStacks(err)
+		return err
 	}
 	*s = RawString(ba)
 

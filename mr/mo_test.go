@@ -2,6 +2,7 @@ package mr
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestMapOnly_EarlyExit(t *testing.T) {
 				return &sophie.IterateCloserStruct{
 					NextF: func(key, val sophie.SophieReader) error {
 						if n >= 10 {
-							return errorsp.WithStacks(sophie.EOF)
+							return errorsp.WithStacks(io.EOF)
 						}
 						*(key.(*sophie.VInt)) = sophie.VInt(n)
 						*(val.(*sophie.RawString)) = sophie.RawString(fmt.Sprint(n))

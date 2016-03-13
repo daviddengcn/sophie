@@ -1,5 +1,7 @@
 package sophie
 
+import "io"
+
 // EmptyClose is a helper type defining an empty Close method
 type EmptyClose struct{}
 
@@ -30,7 +32,7 @@ func (ics *IterateCloserStruct) Next(key, val SophieReader) error {
 	if ics.NextF != nil {
 		return ics.NextF(key, val)
 	}
-	return EOF
+	return io.EOF
 }
 
 // io.Closer struct.

@@ -2,6 +2,7 @@ package kv
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strconv"
@@ -50,15 +51,64 @@ func TestReaderWriter(t *testing.T) {
 	var val sophie.VInt
 	for i := 0; ; i++ {
 		err := reader.Next(&key, &val)
-		if errorsp.Cause(err) == sophie.EOF {
+		if errorsp.Cause(err) == io.EOF {
 			break
 		}
-		assert.NoError(t, err)
+		assert.NoErrorOrDie(t, err)
 		assert.Equal(t, fmt.Sprintf("key[%d]", i), key, keys[i])
 		assert.Equal(t, fmt.Sprintf("val[%d]", i), val, vals[i])
 	}
 
 	assert.NoError(t, reader.Close())
+}
+
+func TestReader_UnexpectedEOF(t *testing.T) {
+	test := func(n int64) {
+		fn := sophie.TempDirPath().Join("TestReader_UnexpectedEOF.kv")
+		defer villa.Path(fn.Path).Remove()
+
+		keys := []sophie.String{
+			"value", "year",
+		}
+		vals := []sophie.Int32{
+			2, 2013,
+		}
+		// Write to the kv file
+		writer, err := NewWriter(fn)
+		assert.NoError(t, err)
+		for i, key := range keys {
+			val := vals[i]
+			assert.NoError(t, writer.Collect(key, val))
+		}
+		assert.NoError(t, writer.Close())
+		f, err := os.OpenFile(fn.Path, os.O_RDWR, 0644)
+		assert.NoError(t, err)
+
+		assert.NoError(t, f.Truncate(n))
+
+		reader, err := NewReader(fn)
+		assert.NoError(t, err)
+
+		var key sophie.String
+		var val sophie.Int32
+		for i := 0; ; i++ {
+			err := reader.Next(&key, &val)
+			if err != nil {
+				if !assert.Equal(t, "err", errorsp.Cause(err), io.ErrUnexpectedEOF) {
+					t.Logf("err: %v", err)
+				}
+				break
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, fmt.Sprintf("key[%d]", i), key, keys[i])
+			assert.Equal(t, fmt.Sprintf("val[%d]", i), val, vals[i])
+		}
+		assert.NoError(t, reader.Close())
+	}
+	test(1)
+	test(2)
+	test(3)
+	test(10)
 }
 
 func TestReadAsByteOffsWriteByteOffs(t *testing.T) {

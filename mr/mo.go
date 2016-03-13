@@ -2,6 +2,7 @@ package mr
 
 import (
 	"errors"
+	"io"
 	"log"
 
 	"github.com/daviddengcn/sophie"
@@ -85,7 +86,7 @@ func (job *MapOnlyJob) Run() error {
 
 					for {
 						if err := iter.Next(key, val); err != nil {
-							if errorsp.Cause(err) != sophie.EOF {
+							if errorsp.Cause(err) != io.EOF {
 								return errorsp.WithStacksAndMessage(err, "next failed")
 							}
 							break

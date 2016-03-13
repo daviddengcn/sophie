@@ -2,6 +2,7 @@ package mr
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 
@@ -94,7 +95,7 @@ func (ms *memSorter) Iterate(c []sophie.Collector, r Reducer) error {
 		valIter := func() (sophie.Sophier, error) {
 			if curVal < 0 {
 				// no values for this key, return EOF
-				return nil, sophie.EOF
+				return nil, io.EOF
 			}
 			// fetch value
 			valBuf := ms.Buffer[ms.ValOffs[curVal]:ms.ValEnds[curVal]]
@@ -120,7 +121,7 @@ func (ms *memSorter) Iterate(c []sophie.Collector, r Reducer) error {
 		// iterate to end in case the reducer doesn't
 		for curVal >= 0 {
 			if _, err := valIter(); err != nil {
-				if errorsp.Cause(err) != sophie.EOF {
+				if errorsp.Cause(err) != io.EOF {
 					return err
 				}
 			}
@@ -228,7 +229,7 @@ func (mo *mapOut) Iterate(c []sophie.Collector, r Reducer) error {
 	key, val := r.NewKey(), r.NewVal()
 	err := mo.reader.Next(key, val)
 	if err != nil {
-		if err == sophie.EOF {
+		if err == io.EOF {
 			// empty input
 			return nil
 		}
@@ -240,13 +241,13 @@ func (mo *mapOut) Iterate(c []sophie.Collector, r Reducer) error {
 		curVal := val
 		valIter := func() (s sophie.Sophier, err error) {
 			if curVal == nil {
-				return nil, sophie.EOF
+				return nil, io.EOF
 			}
 			s, curVal = curVal, nil
 
 			err = mo.reader.Next(nextKey, nextVal)
 			if err != nil {
-				if errorsp.Cause(err) != sophie.EOF {
+				if errorsp.Cause(err) != io.EOF {
 					return s, err
 				}
 				// all key/val read
@@ -264,7 +265,7 @@ func (mo *mapOut) Iterate(c []sophie.Collector, r Reducer) error {
 		// r.Reduce could return before iterating all values
 		for curVal != nil {
 			if _, err := valIter(); err != nil {
-				if errorsp.Cause(err) != sophie.EOF {
+				if errorsp.Cause(err) != io.EOF {
 					return err
 				}
 			}

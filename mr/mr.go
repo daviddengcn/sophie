@@ -30,7 +30,7 @@ A simple word count example is like this:
 					var count sophie.VInt
 					for {
 						val, err := nextVal()
-						if err == sophie.EOF {
+						if err == io.EOF {
 							break
 						}
 						if err != nil {
@@ -55,6 +55,7 @@ One can also use MapOnlyJob for simple jobs.
 package mr
 
 import (
+	"io"
 	"log"
 
 	"github.com/daviddengcn/sophie"
@@ -74,13 +75,13 @@ type Mapper interface {
 	MapEnd(c PartCollector) error
 }
 
-// An interator for fetching a list of Sophiers. If sophie.EOF is returned as
+// An interator for fetching a list of Sophiers. If io.EOF is returned as
 // the error, no further Sophiers are avaiable.
 // Typical usage:
 //   var SophierIterator next
 //   for {
 //       vl, err := next()
-//       if err == sophie.EOF {
+//       if err == io.EOF {
 //           break
 //       }
 //       if err != nil {
@@ -99,7 +100,7 @@ type Reducer interface {
 	// to get all values:
 	//   for {
 	//	 	val, err := nextVal()
-	//   	if errorsp.Cause(err) == sophie.EOF {
+	//   	if errorsp.Cause(err) == io.EOF {
 	//   		break;
 	//   	}
 	//      if err != nil {
@@ -180,10 +181,10 @@ func (job *MrJob) Run() error {
 
 					for {
 						if err := iter.Next(key, val); err != nil {
-							if errorsp.Cause(err) == sophie.EOF {
+							if errorsp.Cause(err) == io.EOF {
 								break
 							}
-							if errorsp.Cause(err) == sophie.ErrUnexpectedEOF {
+							if errorsp.Cause(err) == io.ErrUnexpectedEOF {
 								log.Printf("Ignoring the error: %v", err)
 								break
 							}

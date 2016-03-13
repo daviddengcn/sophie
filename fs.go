@@ -134,6 +134,11 @@ func LocalFsPath(path string) FsPath {
 	}
 }
 
+// TempDirPath returns the OS temporary dir as the fs path.
+func TempDirPath() FsPath {
+	return LocalFsPath(os.TempDir())
+}
+
 // Calls FileSystem.Create with the path
 func (fp FsPath) Create() (WriteCloser, error) {
 	return fp.Fs.Create(fp.Path)

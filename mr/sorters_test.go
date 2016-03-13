@@ -2,6 +2,7 @@ package mr
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"testing"
 
@@ -55,7 +56,7 @@ func checkSorter(t *testing.T, s Sorter) {
 				assert.Equal(t, "len(c)", len(c), 1)
 				for {
 					val, err := nextVal()
-					if err == sophie.EOF {
+					if err == io.EOF {
 						break
 					}
 					if err != nil {

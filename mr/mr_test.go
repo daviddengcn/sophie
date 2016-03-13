@@ -3,11 +3,14 @@ package mr
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/daviddengcn/go-assert"
+	"github.com/golangplus/errors"
+	"github.com/golangplus/testing/assert"
+
 	"github.com/daviddengcn/sophie"
 	"github.com/daviddengcn/sophie/kv"
 )
@@ -20,7 +23,7 @@ type linesIter struct {
 
 func (iter *linesIter) Next(key, val sophie.SophieReader) error {
 	if iter.pos >= len(iter.lines) {
-		return sophie.EOF
+		return io.EOF
 	}
 	*(key.(*sophie.RawString)) = sophie.RawString(iter.lines[iter.pos])
 	iter.pos++
@@ -143,7 +146,7 @@ func (wc *WordCountReducer) Reduce(key sophie.SophieWriter,
 	var count sophie.RawVInt
 	for {
 		val, err := nextVal()
-		if err == sophie.EOF {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
@@ -191,9 +194,9 @@ func statWords(text string) map[string]int {
 }
 
 func assertMapEquals(t *testing.T, act, exp map[string]int) {
-	assert.Equals(t, "count", len(act), len(exp))
+	assert.Equal(t, "count", len(act), len(exp))
 	for k, v := range exp {
-		assert.Equals(t, "count of "+k, act[k], v)
+		assert.Equal(t, "count of "+k, act[k], v)
 	}
 }
 
@@ -215,7 +218,7 @@ func TestMapReduce(t *testing.T) {
 		Dest: []Output{&reducer},
 	}
 
-	assert.NoErrorf(t, "RunJob: %v", job.Run())
+	assert.NoError(t, job.Run())
 
 	expCnts := statWords(WORDS)
 	// fmt.Println(reducer.counts)
@@ -242,23 +245,21 @@ func TestMRFromFile(t *testing.T) {
 	for i, line := range lines {
 		if i%3 == 0 {
 			if inF != nil {
-				assert.NoErrorf(t, "inF.Close: %v", inF.Close())
+				assert.NoError(t, inF.Close())
 				index++
 			}
 			var err error
 			inF, err = kv.NewWriter(mrin.Join(fmt.Sprintf("part-%05d", index)))
-			assert.NoErrorf(t, "NewKVWriter: %v", err)
+			assert.NoError(t, err)
 		}
-
-		assert.NoErrorf(t, "inF.Collect",
-			inF.Collect(sophie.RawString(line), sophie.Null{}))
+		assert.NoError(t, inF.Collect(sophie.RawString(line), sophie.Null{}))
 	}
 	if inF != nil {
-		assert.NoErrorf(t, "inF.Close: %v", inF.Close())
+		assert.NoError(t, inF.Close())
 	}
 
 	mrout := fpRoot.Join("mrout")
-	assert.NoErrorf(t, "Remove mrout: %v", mrout.Remove())
+	assert.NoError(t, mrout.Remove())
 
 	/*
 	 * MrJob
@@ -280,26 +281,26 @@ func TestMRFromFile(t *testing.T) {
 		Dest: []Output{kv.DirOutput(mrout)},
 	}
 
-	assert.NoErrorf(t, "RunJob: %v", job.Run())
+	assert.NoError(t, job.Run())
 
 	/*
 	 * Check result
 	 */
 	resIn := kv.DirInput(mrout)
 	n, err := resIn.PartCount()
-	assert.NoErrorf(t, "resIn.PartCount(): %v", err)
+	assert.NoError(t, err)
 	var word sophie.RawString
 	var cnt sophie.RawVInt
 	actCnts := make(map[string]int)
 	for i := 0; i < n; i++ {
 		iter, err := resIn.Iterator(i)
-		assert.NoErrorf(t, "resIn.Iterator: %v", err)
+		assert.NoError(t, err)
 		for {
 			err := iter.Next(&word, &cnt)
-			if err == sophie.EOF {
+			if errorsp.Cause(err) == io.EOF {
 				break
 			}
-			assert.NoErrorf(t, "iter.Next: %v", err)
+			assert.NoError(t, err)
 			actCnts[string(word)] = int(cnt)
 		}
 	}
@@ -330,8 +331,7 @@ func TestReduceValues(t *testing.T) {
 		NewMapperF: func(src, part int) Mapper {
 			return &MapperStruct{
 				MapEndF: func(c PartCollector) error {
-					return c.CollectTo(0, sophie.RawString("part"),
-						sophie.VInt(part))
+					return c.CollectTo(0, sophie.RawString("part"), sophie.VInt(part))
 				},
 			}
 		},
@@ -351,7 +351,7 @@ func TestReduceValues(t *testing.T) {
 					}
 					for {
 						val, err := nextVal()
-						if err == sophie.EOF {
+						if err == io.EOF {
 							break
 						}
 						if err != nil {
@@ -369,5 +369,5 @@ func TestReduceValues(t *testing.T) {
 			}
 		},
 	}
-	assert.NoErrorf(t, "job.Run failed: %v", job.Run())
+	assert.NoError(t, job.Run())
 }
